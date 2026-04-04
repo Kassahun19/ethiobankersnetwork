@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "users": {
+      "title": "User",
+      "description": "A professional user or employer on the platform.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user." },
+        "email": { "type": "string", "format": "email", "description": "Email address of the user." },
+        "phone": { "type": "string", "description": "Phone number of the user." },
+        "password": { "type": "string", "description": "Hashed password." },
+        "bank": { "type": "string", "description": "Bank affiliation." },
+        "role": { "type": "string", "enum": ["user", "admin", "employer"], "description": "User role." },
+        "is_verified": { "type": "boolean", "description": "Whether the user is verified." },
+        "subscription_plan": { "type": "string", "enum": ["free", "premium", "pro", "elite"], "description": "Current subscription plan." },
+        "created_at": { "type": "string", "format": "date-time", "description": "Account creation timestamp." }
+      },
+      "required": ["name", "email", "password", "role"]
+    },
+    "jobs": {
+      "title": "Job",
+      "description": "A job posting by an employer.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Job title." },
+        "description": { "type": "string", "description": "Detailed job description." },
+        "bank": { "type": "string", "description": "Bank name." },
+        "salary": { "type": "string", "description": "Salary range." },
+        "location": { "type": "string", "description": "Job location." },
+        "type": { "type": "string", "description": "Job type (e.g., Full-time)." },
+        "requirements": { "type": "array", "items": { "type": "string" }, "description": "List of requirements." },
+        "created_by": { "type": "string", "description": "UID of the employer who created the job." },
+        "created_at": { "type": "string", "format": "date-time", "description": "Job posting timestamp." }
+      },
+      "required": ["title", "description", "bank", "created_by"]
+    },
+    "applications": {
+      "title": "Application",
+      "description": "A job application by a user.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "UID of the applicant." },
+        "job_id": { "type": "string", "description": "ID of the job applied for." },
+        "status": { "type": "string", "enum": ["Pending", "Accepted", "Rejected"], "description": "Application status." },
+        "created_at": { "type": "string", "format": "date-time", "description": "Application timestamp." }
+      },
+      "required": ["user_id", "job_id", "status"]
+    },
+    "messages": {
+      "title": "Message",
+      "description": "A message between two users.",
+      "type": "object",
+      "properties": {
+        "sender_id": { "type": "string", "description": "UID of the sender." },
+        "receiver_id": { "type": "string", "description": "UID of the receiver." },
+        "content": { "type": "string", "description": "Message content." },
+        "participants": { "type": "array", "items": { "type": "string" }, "description": "List of participant UIDs." },
+        "created_at": { "type": "string", "format": "date-time", "description": "Message timestamp." }
+      },
+      "required": ["sender_id", "receiver_id", "content", "participants"]
+    },
+    "referrals": {
+      "title": "Referral",
+      "description": "A referral of a new user.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "UID of the referrer." },
+        "invited_email": { "type": "string", "format": "email", "description": "Email of the invited person." },
+        "status": { "type": "string", "enum": ["Pending", "Joined"], "description": "Referral status." },
+        "created_at": { "type": "string", "format": "date-time", "description": "Referral timestamp." }
+      },
+      "required": ["user_id", "invited_email", "status"]
+    }
+  },
+  "firestore": {
+    "users": { "schema": { "$ref": "users" }, "description": "Collection of users." },
+    "jobs": { "schema": { "$ref": "jobs" }, "description": "Collection of job postings." },
+    "applications": { "schema": { "$ref": "applications" }, "description": "Collection of job applications." },
+    "messages": { "schema": { "$ref": "messages" }, "description": "Collection of messages." },
+    "referrals": { "schema": { "$ref": "referrals" }, "description": "Collection of referrals." }
+  }
+}
