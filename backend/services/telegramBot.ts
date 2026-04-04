@@ -66,7 +66,21 @@ export const initTelegramBot = () => {
   if (bot) return bot;
 
   try {
-    bot = new TelegramBot(token, { polling: true });
+    const isProduction = process.env.NODE_ENV === "production";
+    const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
+    
+    if (isProduction || process.env.TELEGRAM_WEBHOOK_ENABLED === "true") {
+      bot = new TelegramBot(token, { polling: false });
+      const webhookUrl = `${appUrl}/api/telegram-webhook`;
+      bot.setWebHook(webhookUrl).then(() => {
+        console.log(`Telegram Webhook set to: ${webhookUrl}`);
+      }).catch(err => {
+        console.error("Error setting Telegram Webhook:", err);
+      });
+    } else {
+      bot = new TelegramBot(token, { polling: true });
+      console.log("Telegram Bot initialized in POLLING mode (Development)...");
+    }
 
     bot.on("polling_error", (error) => {
       console.error("Telegram Polling Error:", error);
@@ -104,7 +118,8 @@ export const initTelegramBot = () => {
       }
     }
 
-    keyboard.push([{ text: "📱 Open Web App", web_app: { url: process.env.APP_URL || "" } }]);
+    const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
+    keyboard.push([{ text: "📱 Open Web App", web_app: { url: appUrl } }]);
     keyboard.push([{ text: "≡ Menu" }]);
 
     return {
@@ -741,7 +756,8 @@ export const initTelegramBot = () => {
 
             jobMsg += `🚀 *Application Process:*\n`;
             jobMsg += `To apply for this position, please visit our web app or follow the instructions provided by the bank. Most banking applications in Ethiopia require physical submission or their specific online portal.\n\n`;
-            jobMsg += `🔗 [Open in Web App](${process.env.APP_URL}/jobs/${jobId})`;
+            const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
+            jobMsg += `🔗 [Open in Web App](${appUrl}/jobs/${jobId})`;
 
             bot?.editMessageText(jobMsg, {
               chat_id: chatId,
@@ -826,6 +842,12 @@ export const initTelegramBot = () => {
   return bot;
 };
 
+export const handleTelegramWebhook = (body: any) => {
+  if (bot) {
+    bot.processUpdate(body);
+  }
+};
+
 export const notifyNewJob = async (job: any, jobId: string) => {
   if (!bot) return;
 
@@ -836,11 +858,12 @@ export const notifyNewJob = async (job: any, jobId: string) => {
   // Example: notify a specific channel if configured in env
   const channelId = process.env.TELEGRAM_CHANNEL_ID;
   if (channelId) {
+    const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
     const message = `🆕 *New Job Alert!*\n\n` +
                     `📌 *${job.title}*\n` +
                     `🏦 Bank: ${job.bank}\n` +
                     `📍 Location: ${job.location}\n` +
-                    `🔗 [Apply Now](${process.env.APP_URL}/jobs/${jobId})`;
+                    `🔗 [Apply Now](${appUrl}/jobs/${jobId})`;
     
     try {
       await bot.sendMessage(channelId, message, { parse_mode: "Markdown" });

@@ -65,7 +65,7 @@ async function initializeApp() {
     const paymentRoutes = (await import("./backend/routes/paymentRoutes")).default;
     const applicationRoutes = (await import("./backend/routes/applicationRoutes")).default;
     const adminRoutes = (await import("./backend/routes/adminRoutes")).default;
-    const { initTelegramBot } = await import("./backend/services/telegramBot");
+    const { initTelegramBot, handleTelegramWebhook } = await import("./backend/services/telegramBot");
 
     // Socket.io logic
     const io = new Server(server, {
@@ -102,6 +102,17 @@ async function initializeApp() {
     app.use("/api/payments", paymentRoutes);
     app.use("/api/applications", applicationRoutes);
     app.use("/api/admin", adminRoutes);
+
+    // Telegram Webhook Route
+    app.post("/api/telegram-webhook", (req, res) => {
+      try {
+        handleTelegramWebhook(req.body);
+        res.sendStatus(200);
+      } catch (err) {
+        console.error("Error handling Telegram webhook:", err);
+        res.sendStatus(500);
+      }
+    });
 
     // Initialize Telegram Bot
     setTimeout(() => {
