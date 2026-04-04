@@ -361,10 +361,16 @@ export const initTelegramBot = () => {
                 is_verified: false,
                 subscription_plan: "free",
                 created_at: new Date().toISOString(),
-                telegramChatId: chatId
+                telegramChatId: chatId,
+                source: "telegram_bot"
               };
 
               await addDoc(usersRef, newUser);
+              
+              // Notify Admin
+              const { notifyAdminOfNewUser } = await import("./notificationService");
+              notifyAdminOfNewUser({ ...newUser, id: "telegram_user" }).catch(err => console.error("Admin notification failed:", err));
+
               bot?.sendMessage(chatId, `🎉 Registration successful! Welcome to the EthioBankers Network, ${state.data.name}. You can now use the menu to explore jobs.`, getMainMenuKeyboard(chatId) as any);
               state.step = "IDLE";
               state.data = {};
@@ -845,6 +851,25 @@ export const initTelegramBot = () => {
 export const handleTelegramWebhook = (body: any) => {
   if (bot) {
     bot.processUpdate(body);
+  }
+};
+
+export const sendAdminNotification = async (message: string) => {
+  if (!bot) return;
+
+  try {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("role", "==", "admin"));
+    const adminsSnapshot = await getDocs(q);
+    
+    adminsSnapshot.docs.forEach(adminDoc => {
+      const adminData = adminDoc.data();
+      if (adminData.telegramChatId) {
+        bot?.sendMessage(adminData.telegramChatId, message, { parse_mode: "Markdown" });
+      }
+    });
+  } catch (error) {
+    console.error("Error sending admin notification:", error);
   }
 };
 

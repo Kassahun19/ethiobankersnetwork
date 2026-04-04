@@ -11,6 +11,7 @@ interface User {
   bank: string;
   is_verified: boolean;
   created_at: string;
+  source?: string;
 }
 
 interface Job {
@@ -181,6 +182,7 @@ const AdminDashboard: React.FC = () => {
                     <th className="pb-4 font-medium">User</th>
                     <th className="pb-4 font-medium">Bank</th>
                     <th className="pb-4 font-medium">Role</th>
+                    <th className="pb-4 font-medium">Source</th>
                     <th className="pb-4 font-medium">Status</th>
                     <th className="pb-4 font-medium">Joined</th>
                     <th className="pb-4 font-medium text-right">Actions</th>
@@ -208,6 +210,13 @@ const AdminDashboard: React.FC = () => {
                           'bg-gray-100 text-gray-700'
                         }`}>
                           {user.role}
+                        </span>
+                      </td>
+                      <td className="py-4">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                          user.source === 'telegram_bot' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.source || 'website'}
                         </span>
                       </td>
                       <td className="py-4">

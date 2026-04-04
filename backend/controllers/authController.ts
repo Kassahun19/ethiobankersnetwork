@@ -47,6 +47,7 @@ export const register = async (req: Request, res: Response) => {
       is_verified: false,
       subscription_plan: "free",
       created_at: new Date().toISOString(),
+      source: "website",
     };
 
     console.log("[AUTH] Adding user to Firestore...");
@@ -55,6 +56,10 @@ export const register = async (req: Request, res: Response) => {
     
     const user: any = { id: docRef.id, ...newUser };
     delete user.password;
+
+    // Notify Admin
+    const { notifyAdminOfNewUser } = await import("../services/notificationService");
+    notifyAdminOfNewUser(user).catch(err => console.error("Admin notification failed:", err));
 
     // Create token
     const token = jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
