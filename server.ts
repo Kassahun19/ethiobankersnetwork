@@ -4,6 +4,7 @@ import path from "path";
 import { Server } from "socket.io";
 import http from "http";
 import dotenv from "dotenv";
+import { db } from "./backend/config/firebase";
 
 dotenv.config();
 
@@ -95,6 +96,18 @@ async function initializeApp() {
     // API Routes
     app.get("/api/health", (req, res) => {
       res.json({ status: isReady ? "ok" : "initializing", message: "EthioBankers Network API" });
+    });
+
+    app.get("/api/test-db", async (req, res) => {
+      try {
+        const { collection, getDocs, limit, query } = await import("firebase/firestore");
+        const q = query(collection(db, "users"), limit(1));
+        await getDocs(q);
+        res.json({ status: "ok", message: "Firestore connection successful" });
+      } catch (err: any) {
+        console.error("Firestore test failed:", err);
+        res.status(500).json({ status: "error", message: err.message, code: err.code });
+      }
     });
 
     app.use("/api/auth", authRoutes);

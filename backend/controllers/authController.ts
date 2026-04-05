@@ -58,15 +58,24 @@ export const register = async (req: Request, res: Response) => {
     delete user.password;
 
     // Notify Admin
-    const { notifyAdminOfNewUser } = await import("../services/notificationService");
-    notifyAdminOfNewUser(user).catch(err => console.error("Admin notification failed:", err));
+    try {
+      const { notifyAdminOfNewUser } = await import("../services/notificationService");
+      await notifyAdminOfNewUser(user);
+    } catch (err) {
+      console.error("Admin notification failed (non-blocking):", err);
+    }
 
     // Create token
     const token = jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
 
     res.status(201).json({ token, user });
   } catch (err: any) {
-    console.error("[AUTH] Registration error:", err);
+    console.error("[AUTH] Registration error details:", {
+      message: err.message,
+      code: err.code,
+      stack: err.stack,
+      email: req.body.email
+    });
     res.status(500).json({ 
       message: "Server error during registration", 
       error: err.message,
@@ -115,7 +124,12 @@ export const login = async (req: Request, res: Response) => {
     console.log(`[AUTH] User ${email} logged in successfully`);
     res.json({ token, user });
   } catch (err: any) {
-    console.error("[AUTH] Login error:", err);
+    console.error("[AUTH] Login error details:", {
+      message: err.message,
+      code: err.code,
+      stack: err.stack,
+      email: req.body.email
+    });
     res.status(500).json({ 
       message: "Server error during login", 
       error: err.message,

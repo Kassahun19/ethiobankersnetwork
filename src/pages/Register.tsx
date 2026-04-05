@@ -32,7 +32,10 @@ const Register: React.FC = () => {
       navigate("/dashboard");
     } catch (err: any) {
       console.error("Registration error details:", err.response?.data || err.message);
-      setError(err.response?.data?.message || "Failed to register. Please try again.");
+      const serverMsg = err.response?.data?.message;
+      const serverErr = err.response?.data?.error;
+      const errorMsg = serverErr ? `${serverMsg}: ${serverErr}` : (serverMsg || "Failed to register. Please try again.");
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

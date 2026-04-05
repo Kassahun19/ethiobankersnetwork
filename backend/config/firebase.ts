@@ -29,7 +29,9 @@ try {
 // We use the named database if provided in the config
 // Enabling long polling for better stability in serverless environments
 const databaseId = firebaseConfig.firestoreDatabaseId || "(default)";
-export const db = getFirestore(app, databaseId);
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, databaseId);
 
 export const auth = getAuth(app);
 
