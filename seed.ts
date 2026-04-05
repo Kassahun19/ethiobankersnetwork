@@ -1,5 +1,4 @@
 import { db } from "./backend/config/firebase";
-import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import * as bcrypt from "bcryptjs";
 
 const jobs = [
@@ -63,10 +62,10 @@ const jobs = [
 async function seed() {
   try {
     // Add jobs
-    const jobsRef = collection(db, "jobs");
+    const jobsRef = db.collection("jobs");
     for (const job of jobs) {
       try {
-        await addDoc(jobsRef, job);
+        await jobsRef.add(job);
         console.log(`Added job: ${job.title}`);
       } catch (e: any) {
         console.warn(`Skipping job ${job.title} due to permissions: ${e.message}`);
@@ -74,10 +73,9 @@ async function seed() {
     }
 
     // Add admin user
-    const usersRef = collection(db, "users");
+    const usersRef = db.collection("users");
     const adminEmail = "kmulatu21@gmail.com";
-    const q = query(usersRef, where("email", "==", adminEmail));
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await usersRef.where("email", "==", adminEmail).get();
 
     if (querySnapshot.empty) {
       const hashedPassword = await bcrypt.hash("admin", 10);
@@ -91,7 +89,7 @@ async function seed() {
         subscription_plan: "premium",
         created_at: new Date().toISOString(),
       };
-      await addDoc(usersRef, adminUser);
+      await usersRef.add(adminUser);
       console.log("Admin user seeded successfully!");
     } else {
       console.log("Admin user already exists.");

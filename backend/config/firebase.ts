@@ -22,20 +22,38 @@ import {
 import fs from "fs";
 import path from "path";
 
-// Load configuration from firebase-applet-config.json
+// Load configuration from environment variables or firebase-applet-config.json
 const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-let firebaseConfig: any = {};
+let firebaseConfig: any = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
+  firestoreDatabaseId: process.env.FIREBASE_FIRESTORE_DATABASE_ID,
+};
 
-try {
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+// If environment variables are missing, try to load from the config file
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  try {
+    if (fs.existsSync(configPath)) {
+      const fileConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      firebaseConfig = { ...firebaseConfig, ...fileConfig };
+    }
+  } catch (error) {
+    console.error("Error loading firebase-applet-config.json:", error);
   }
-} catch (error) {
-  console.error("Error loading firebase-applet-config.json:", error);
 }
 
+console.log(`[FIREBASE] Config keys present: ${Object.keys(firebaseConfig).filter(k => !!firebaseConfig[k]).join(", ")}`);
 const app = initializeApp(firebaseConfig);
-const clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
+
+console.log(`[FIREBASE] Initialized for project: ${firebaseConfig.projectId}`);
+if (firebaseConfig.firestoreDatabaseId) {
+  console.log(`[FIREBASE] Using database: ${firebaseConfig.firestoreDatabaseId}`);
+}
 
 // Wrapper to mimic Admin SDK Firestore API
 class CollectionWrapper {
@@ -68,6 +86,7 @@ class CollectionWrapper {
     const snap = await getDocs(colRef);
     return {
       empty: snap.empty,
+      size: snap.size,
       docs: snap.docs.map(doc => ({
         id: doc.id,
         data: () => doc.data()
@@ -129,6 +148,7 @@ class QueryWrapper {
     const snap = await getDocs(q);
     return {
       empty: snap.empty,
+      size: snap.size,
       docs: snap.docs.map(doc => ({
         id: doc.id,
         data: () => doc.data()

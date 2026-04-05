@@ -22,9 +22,21 @@ export const register = async (req: Request, res: Response) => {
 
     // Check if user exists
     const usersRef = db.collection("users");
+    console.log(`[AUTH] Querying users for email: ${email}`);
     const q = usersRef.where("email", "==", email);
-    console.log("[AUTH] Checking if user exists in Firestore...");
-    const querySnapshot = await q.get();
+    
+    let querySnapshot;
+    try {
+      querySnapshot = await q.get();
+      console.log(`[AUTH] Query successful. Empty: ${querySnapshot.empty}`);
+    } catch (dbErr: any) {
+      console.error("[AUTH] Firestore query failed during registration:", {
+        message: dbErr.message,
+        code: dbErr.code,
+        stack: dbErr.stack
+      });
+      throw dbErr; // Re-throw to be caught by the outer catch
+    }
 
     if (!querySnapshot.empty) {
       console.warn(`[AUTH] Registration failed: User ${email} already exists`);
@@ -96,9 +108,21 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const usersRef = db.collection("users");
+    console.log(`[AUTH] Fetching user for email: ${email}`);
     const q = usersRef.where("email", "==", email);
-    console.log("[AUTH] Fetching user from Firestore...");
-    const querySnapshot = await q.get();
+    
+    let querySnapshot;
+    try {
+      querySnapshot = await q.get();
+      console.log(`[AUTH] Query successful. Empty: ${querySnapshot.empty}`);
+    } catch (dbErr: any) {
+      console.error("[AUTH] Firestore query failed during login:", {
+        message: dbErr.message,
+        code: dbErr.code,
+        stack: dbErr.stack
+      });
+      throw dbErr; // Re-throw to be caught by the outer catch
+    }
 
     if (querySnapshot.empty) {
       console.warn(`[AUTH] Login failed: User ${email} not found`);

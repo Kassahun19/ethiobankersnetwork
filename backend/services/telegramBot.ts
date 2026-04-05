@@ -841,8 +841,11 @@ export const initTelegramBot = () => {
 };
 
 export const handleTelegramWebhook = (body: any) => {
-  if (bot) {
-    bot.processUpdate(body);
+  const currentBot = initTelegramBot();
+  if (currentBot) {
+    currentBot.processUpdate(body);
+  } else {
+    console.error("Cannot handle Telegram webhook: Bot not initialized.");
   }
 };
 
