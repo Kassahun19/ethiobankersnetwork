@@ -65,20 +65,23 @@ export const initTelegramBot = () => {
   if (bot) return bot;
 
   try {
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
     const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
     
     if (isProduction || process.env.TELEGRAM_WEBHOOK_ENABLED === "true") {
+      console.log(`[BOT] Initializing in WEBHOOK mode for ${appUrl}`);
       bot = new TelegramBot(token, { polling: false });
       const webhookUrl = `${appUrl}/api/telegram-webhook`;
+      
+      // Only set webhook if we are in a fresh instance or it's explicitly requested
       bot.setWebHook(webhookUrl).then(() => {
-        console.log(`Telegram Webhook set to: ${webhookUrl}`);
+        console.log(`[BOT] Telegram Webhook set to: ${webhookUrl}`);
       }).catch(err => {
-        console.error("Error setting Telegram Webhook:", err);
+        console.error("[BOT] Error setting Telegram Webhook:", err);
       });
     } else {
+      console.log("[BOT] Initializing in POLLING mode (Development)...");
       bot = new TelegramBot(token, { polling: true });
-      console.log("Telegram Bot initialized in POLLING mode (Development)...");
     }
 
     bot.on("polling_error", (error) => {

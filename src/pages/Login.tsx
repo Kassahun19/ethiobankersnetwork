@@ -27,8 +27,16 @@ const Login: React.FC = () => {
       console.error("Login error details:", err.response?.data || err.message);
       const serverMsg = err.response?.data?.message;
       const serverErr = err.response?.data?.error;
-      const errorMsg = serverErr ? `${serverMsg}: ${serverErr}` : (serverMsg || "Failed to login. Please check your credentials.");
-      setError(errorMsg);
+      
+      let displayError = "";
+      if (serverMsg && serverErr) {
+        const detail = typeof serverErr === 'object' ? JSON.stringify(serverErr) : serverErr;
+        displayError = `${serverMsg}: ${detail}`;
+      } else {
+        displayError = serverMsg || (typeof serverErr === 'string' ? serverErr : "") || "Failed to login. Please check your credentials.";
+      }
+      
+      setError(displayError);
     } finally {
       setLoading(false);
     }

@@ -87,9 +87,24 @@ export const register = async (req: Request, res: Response) => {
       stack: err.stack,
       email: req.body.email
     });
+    
+    let errorMessage = "Server error during registration";
+    let errorDetail = err.message;
+    
+    // Check if it's a JSON string from handleFirestoreError
+    try {
+      const parsed = JSON.parse(err.message);
+      if (parsed.error) {
+        errorDetail = parsed.error;
+        errorMessage = `Database error: ${parsed.operationType} on ${parsed.path}`;
+      }
+    } catch (e) {
+      // Not a JSON string, use as is
+    }
+
     res.status(500).json({ 
-      message: "Server error during registration", 
-      error: err.message,
+      message: errorMessage, 
+      error: errorDetail,
       code: err.code || "unknown"
     });
   }
@@ -153,9 +168,24 @@ export const login = async (req: Request, res: Response) => {
       stack: err.stack,
       email: req.body.email
     });
+    
+    let errorMessage = "Server error during login";
+    let errorDetail = err.message;
+    
+    // Check if it's a JSON string from handleFirestoreError
+    try {
+      const parsed = JSON.parse(err.message);
+      if (parsed.error) {
+        errorDetail = parsed.error;
+        errorMessage = `Database error: ${parsed.operationType} on ${parsed.path}`;
+      }
+    } catch (e) {
+      // Not a JSON string, use as is
+    }
+
     res.status(500).json({ 
-      message: "Server error during login", 
-      error: err.message,
+      message: errorMessage, 
+      error: errorDetail,
       code: err.code || "unknown"
     });
   }
