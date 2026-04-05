@@ -71,14 +71,20 @@ export const initTelegramBot = () => {
     if (isProduction || process.env.TELEGRAM_WEBHOOK_ENABLED === "true") {
       console.log(`[BOT] Initializing in WEBHOOK mode for ${appUrl}`);
       bot = new TelegramBot(token, { polling: false });
-      const webhookUrl = `${appUrl}/api/telegram-webhook`;
       
-      // Only set webhook if we are in a fresh instance or it's explicitly requested
-      bot.setWebHook(webhookUrl).then(() => {
-        console.log(`[BOT] Telegram Webhook set to: ${webhookUrl}`);
-      }).catch(err => {
-        console.error("[BOT] Error setting Telegram Webhook:", err);
-      });
+      // Only set webhook if explicitly requested via environment variable
+      // This avoids redundant network calls on every function invocation
+      if (process.env.TELEGRAM_SET_WEBHOOK === "true") {
+        const webhookUrl = `${appUrl}/api/telegram-webhook`;
+        console.log(`[BOT] Attempting to set Telegram Webhook to: ${webhookUrl}`);
+        bot.setWebHook(webhookUrl).then(() => {
+          console.log(`[BOT] Telegram Webhook set successfully to: ${webhookUrl}`);
+        }).catch(err => {
+          console.error("[BOT] Error setting Telegram Webhook:", err);
+        });
+      } else {
+        console.log("[BOT] Webhook mode active, but setWebHook call skipped (TELEGRAM_SET_WEBHOOK not true)");
+      }
     } else {
       console.log("[BOT] Initializing in POLLING mode (Development)...");
       bot = new TelegramBot(token, { polling: true });
@@ -853,7 +859,8 @@ export const handleTelegramWebhook = (body: any) => {
 };
 
 export const sendAdminNotification = async (message: string) => {
-  if (!bot) return;
+  const currentBot = initTelegramBot();
+  if (!currentBot) return;
 
   try {
     const usersRef = db.collection("users");
@@ -871,7 +878,8 @@ export const sendAdminNotification = async (message: string) => {
 };
 
 export const notifyNewJob = async (job: any, jobId: string) => {
-  if (!bot) return;
+  const currentBot = initTelegramBot();
+  if (!currentBot) return;
 
   // In a real app, you might want to send this to a specific channel or all subscribers
   // For now, we'll just log it or send to a test chat if configured

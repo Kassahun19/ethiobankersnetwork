@@ -105,12 +105,13 @@ console.log(`[FIREBASE] Config keys present: ${Object.keys(firebaseConfig).filte
 const app = initializeApp(firebaseConfig);
 const clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
 
-// Validate Connection to Firestore
-async function testConnection() {
+// Validate Connection to Firestore (Optional, call explicitly if needed)
+export async function testConnection() {
   try {
     // Attempt to get a dummy doc from server to test connection
     await getDocFromServer(doc(clientDb, 'test', 'connection'));
     console.log("[FIREBASE] Connection test successful");
+    return true;
   } catch (error: any) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.error("[FIREBASE] Connection test failed: The client is offline. Please check your Firebase configuration and network.");
@@ -118,9 +119,10 @@ async function testConnection() {
       // Other errors are expected if the doc doesn't exist or permissions are tight
       console.log("[FIREBASE] Connection test completed (may have expected permission/not-found errors)");
     }
+    return false;
   }
 }
-testConnection();
+// testConnection(); // Removed top-level call to avoid blocking startup
 
 console.log(`[FIREBASE] Initialized for project: ${firebaseConfig.projectId}`);
 if (firebaseConfig.firestoreDatabaseId) {
@@ -268,15 +270,4 @@ export const db = {
   collection: (path: string) => new CollectionWrapper(clientDb, path)
 };
 
-// We still need firebase-admin for some things, but for Firestore we use client SDK
-import { initializeApp as initializeAdminApp, getApps as getAdminApps } from "firebase-admin/app";
-import { getAuth as getAdminAuth } from "firebase-admin/auth";
-
-if (getAdminApps().length === 0) {
-  initializeAdminApp({
-    projectId: firebaseConfig.projectId,
-  });
-}
-export const auth = getAdminAuth();
-
-export default { db, auth };
+export default { db };
