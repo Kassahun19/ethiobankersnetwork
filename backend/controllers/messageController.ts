@@ -1,16 +1,13 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
-import { collection, query, where, orderBy, getDocs, doc, getDoc, addDoc } from "firebase/firestore";
 
 export const getConversations = async (req: any, res: Response) => {
   try {
-    const messagesRef = collection(db, "messages");
-    const q = query(
-      messagesRef,
-      where("participants", "array-contains", req.user.id),
-      orderBy("created_at", "desc")
-    );
-    const querySnapshot = await getDocs(q);
+    const messagesRef = db.collection("messages");
+    const q = messagesRef
+      .where("participants", "array-contains", req.user.id)
+      .orderBy("created_at", "desc");
+    const querySnapshot = await q.get();
 
     const conversationsMap = new Map();
     for (const messageDoc of querySnapshot.docs) {
@@ -18,9 +15,9 @@ export const getConversations = async (req: any, res: Response) => {
       const otherUserId = messageData.participants.find((id: string) => id !== req.user.id);
       
       if (!conversationsMap.has(otherUserId)) {
-        const otherUserDocRef = doc(db, "users", otherUserId);
-        const otherUserDoc = await getDoc(otherUserDocRef);
-        const otherUserData = otherUserDoc.exists() ? otherUserDoc.data() : { name: "Unknown User" };
+        const otherUserDocRef = db.collection("users").doc(otherUserId);
+        const otherUserDoc = await otherUserDocRef.get();
+        const otherUserData = otherUserDoc.exists ? otherUserDoc.data() : { name: "Unknown User" };
         
         conversationsMap.set(otherUserId, {
           id: otherUserId,
@@ -42,13 +39,11 @@ export const getConversations = async (req: any, res: Response) => {
 
 export const getMessages = async (req: any, res: Response) => {
   try {
-    const messagesRef = collection(db, "messages");
-    const q = query(
-      messagesRef,
-      where("participants", "array-contains", req.user.id),
-      orderBy("created_at", "asc")
-    );
-    const querySnapshot = await getDocs(q);
+    const messagesRef = db.collection("messages");
+    const q = messagesRef
+      .where("participants", "array-contains", req.user.id)
+      .orderBy("created_at", "asc");
+    const querySnapshot = await q.get();
 
     const messages = querySnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as any))
@@ -73,7 +68,7 @@ export const sendMessage = async (req: any, res: Response) => {
       created_at: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(collection(db, "messages"), newMessage);
+    const docRef = await db.collection("messages").add(newMessage);
     res.status(201).json({ id: docRef.id, ...newMessage });
   } catch (err: any) {
     console.error("SendMessage error:", err);

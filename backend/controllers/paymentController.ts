@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
-import { doc, updateDoc, collection, addDoc } from "firebase/firestore";
 
 export const subscribe = async (req: any, res: Response) => {
   const { planId } = req.body;
@@ -8,13 +7,13 @@ export const subscribe = async (req: any, res: Response) => {
   try {
     // In a real app, verify payment with Telebirr/Chapa here
     
-    const userRef = doc(db, "users", req.user.id);
-    await updateDoc(userRef, {
+    const userRef = db.collection("users").doc(req.user.id);
+    await userRef.update({
       subscription_plan: planId,
     });
 
     // Create subscription record
-    await addDoc(collection(db, "subscriptions"), {
+    await db.collection("subscriptions").add({
       user_id: req.user.id,
       plan: planId,
       status: "Active",

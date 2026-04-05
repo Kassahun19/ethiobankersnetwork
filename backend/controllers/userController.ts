@@ -1,13 +1,12 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
-import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { analyzeCV } from "../services/aiService";
 
 export const uploadCV = async (req: any, res: Response) => {
   try {
-    const userRef = doc(db, "users", req.user.id);
+    const userRef = db.collection("users").doc(req.user.id);
     // In a real app, we'd save the file path to Firestore
-    await updateDoc(userRef, { cv_uploaded: true, cv_last_updated: new Date().toISOString() });
+    await userRef.update({ cv_uploaded: true, cv_last_updated: new Date().toISOString() });
     res.json({ message: "CV uploaded successfully" });
   } catch (err: any) {
     console.error("UploadCV error:", err);
@@ -17,8 +16,8 @@ export const uploadCV = async (req: any, res: Response) => {
 
 export const analyzeUserCV = async (req: any, res: Response) => {
   try {
-    const userDocRef = doc(db, "users", req.user.id);
-    const userDoc = await getDoc(userDocRef);
+    const userDocRef = db.collection("users").doc(req.user.id);
+    const userDoc = await userDocRef.get();
     const userData = userDoc.data();
     
     // In a real app, we'd extract text from the uploaded PDF/Doc
@@ -35,10 +34,10 @@ export const analyzeUserCV = async (req: any, res: Response) => {
 
 export const verifyBankEmail = async (req: any, res: Response) => {
   try {
-    const userRef = doc(db, "users", req.user.id);
+    const userRef = db.collection("users").doc(req.user.id);
     // In a real app, we'd send an email and wait for verification
     // For this demo, we'll just mark as verified
-    await updateDoc(userRef, { is_verified: true });
+    await userRef.update({ is_verified: true });
     res.json({ message: "Verification email sent" });
   } catch (err: any) {
     console.error("VerifyBankEmail error:", err);
@@ -48,9 +47,9 @@ export const verifyBankEmail = async (req: any, res: Response) => {
 
 export const getUserStats = async (req: any, res: Response) => {
   try {
-    const appsRef = collection(db, "applications");
-    const q = query(appsRef, where("user_id", "==", req.user.id));
-    const querySnapshot = await getDocs(q);
+    const appsRef = db.collection("applications");
+    const q = appsRef.where("user_id", "==", req.user.id);
+    const querySnapshot = await q.get();
 
     const stats = {
       appliedJobs: querySnapshot.size,
@@ -68,20 +67,18 @@ export const getUserStats = async (req: any, res: Response) => {
 
 export const getRecentApplications = async (req: any, res: Response) => {
   try {
-    const appsRef = collection(db, "applications");
-    const q = query(
-      appsRef,
-      where("user_id", "==", req.user.id),
-      orderBy("created_at", "desc"),
-      limit(5)
-    );
-    const querySnapshot = await getDocs(q);
+    const appsRef = db.collection("applications");
+    const q = appsRef
+      .where("user_id", "==", req.user.id)
+      .orderBy("created_at", "desc")
+      .limit(5);
+    const querySnapshot = await q.get();
 
     const applications = await Promise.all(querySnapshot.docs.map(async (appDoc) => {
       const appData = appDoc.data();
-      const jobDocRef = doc(db, "jobs", appData.job_id);
-      const jobDoc = await getDoc(jobDocRef);
-      const jobData = jobDoc.exists() ? jobDoc.data() : { title: "Unknown Job", bank: "Unknown Bank" };
+      const jobDocRef = db.collection("jobs").doc(appData.job_id);
+      const jobDoc = await jobDocRef.get();
+      const jobData = jobDoc.exists ? jobDoc.data() : { title: "Unknown Job", bank: "Unknown Bank" };
       
       return {
         id: appDoc.id,
@@ -101,8 +98,8 @@ export const getRecentApplications = async (req: any, res: Response) => {
 
 export const updateProfile = async (req: any, res: Response) => {
   try {
-    const userRef = doc(db, "users", req.user.id);
-    await updateDoc(userRef, req.body);
+    const userRef = db.collection("users").doc(req.user.id);
+    await userRef.update(req.body);
     res.json({ message: "Profile updated successfully" });
   } catch (err: any) {
     console.error("UpdateProfile error:", err);
@@ -112,9 +109,9 @@ export const updateProfile = async (req: any, res: Response) => {
 
 export const getProfile = async (req: any, res: Response) => {
   try {
-    const userDocRef = doc(db, "users", req.user.id);
-    const userDoc = await getDoc(userDocRef);
-    if (!userDoc.exists()) {
+    const userDocRef = db.collection("users").doc(req.user.id);
+    const userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
       return res.status(404).json({ message: "User not found" });
     }
     const userData = userDoc.data();

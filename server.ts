@@ -100,9 +100,7 @@ async function initializeApp() {
 
     app.get("/api/test-db", async (req, res) => {
       try {
-        const { collection, getDocs, limit, query } = await import("firebase/firestore");
-        const q = query(collection(db, "users"), limit(1));
-        await getDocs(q);
+        await db.collection("users").limit(1).get();
         res.json({ status: "ok", message: "Firestore connection successful" });
       } catch (err: any) {
         console.error("Firestore test failed:", err);

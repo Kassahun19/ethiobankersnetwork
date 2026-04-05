@@ -1,19 +1,16 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
-import { collection, query, where, getDocs, addDoc, doc, updateDoc } from "firebase/firestore";
 
 export const applyToJob = async (req: any, res: Response) => {
   const { jobId } = req.body;
 
   try {
     // Check if already applied
-    const appsRef = collection(db, "applications");
-    const q = query(
-      appsRef,
-      where("user_id", "==", req.user.id),
-      where("job_id", "==", jobId)
-    );
-    const querySnapshot = await getDocs(q);
+    const appsRef = db.collection("applications");
+    const q = appsRef
+      .where("user_id", "==", req.user.id)
+      .where("job_id", "==", jobId);
+    const querySnapshot = await q.get();
 
     if (!querySnapshot.empty) {
       return res.status(400).json({ message: "You have already applied for this job" });
@@ -26,7 +23,7 @@ export const applyToJob = async (req: any, res: Response) => {
       created_at: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(appsRef, newApplication);
+    const docRef = await appsRef.add(newApplication);
     res.status(201).json({ id: docRef.id, ...newApplication });
   } catch (err: any) {
     console.error("ApplyToJob error:", err);
@@ -38,8 +35,8 @@ export const updateApplicationStatus = async (req: any, res: Response) => {
   const { status } = req.body;
 
   try {
-    const appDocRef = doc(db, "applications", req.params.id);
-    await updateDoc(appDocRef, { status });
+    const appDocRef = db.collection("applications").doc(req.params.id);
+    await appDocRef.update({ status });
     res.json({ message: "Application status updated" });
   } catch (err: any) {
     console.error("UpdateStatus error:", err);

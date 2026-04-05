@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import * as bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "../config/firebase";
-import { collection, query, where, getDocs, addDoc, doc, getDoc } from "firebase/firestore";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
 
@@ -22,10 +21,10 @@ export const register = async (req: Request, res: Response) => {
     }
 
     // Check if user exists
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", email));
+    const usersRef = db.collection("users");
+    const q = usersRef.where("email", "==", email);
     console.log("[AUTH] Checking if user exists in Firestore...");
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
 
     if (!querySnapshot.empty) {
       console.warn(`[AUTH] Registration failed: User ${email} already exists`);
@@ -51,7 +50,7 @@ export const register = async (req: Request, res: Response) => {
     };
 
     console.log("[AUTH] Adding user to Firestore...");
-    const docRef = await addDoc(usersRef, newUser);
+    const docRef = await usersRef.add(newUser);
     console.log(`[AUTH] User registered successfully with ID: ${docRef.id}`);
     
     const user: any = { id: docRef.id, ...newUser };
@@ -96,10 +95,10 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", email));
+    const usersRef = db.collection("users");
+    const q = usersRef.where("email", "==", email);
     console.log("[AUTH] Fetching user from Firestore...");
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
       console.warn(`[AUTH] Login failed: User ${email} not found`);
@@ -140,9 +139,9 @@ export const login = async (req: Request, res: Response) => {
 
 export const getMe = async (req: any, res: Response) => {
   try {
-    const userDocRef = doc(db, "users", req.user.id);
-    const userDoc = await getDoc(userDocRef);
-    if (!userDoc.exists()) {
+    const userDocRef = db.collection("users").doc(req.user.id);
+    const userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
       return res.status(404).json({ message: "User not found" });
     }
 

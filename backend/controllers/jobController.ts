@@ -1,13 +1,12 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
-import { collection, query, orderBy, getDocs, doc, getDoc, addDoc } from "firebase/firestore";
 import { notifyNewJob } from "../services/telegramBot";
 
 export const getJobs = async (req: Request, res: Response) => {
   try {
-    const jobsRef = collection(db, "jobs");
-    const q = query(jobsRef, orderBy("created_at", "desc"));
-    const querySnapshot = await getDocs(q);
+    const jobsRef = db.collection("jobs");
+    const q = jobsRef.orderBy("created_at", "desc");
+    const querySnapshot = await q.get();
 
     const jobs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.json(jobs);
@@ -19,9 +18,9 @@ export const getJobs = async (req: Request, res: Response) => {
 
 export const getJobById = async (req: Request, res: Response) => {
   try {
-    const jobDocRef = doc(db, "jobs", req.params.id);
-    const jobDoc = await getDoc(jobDocRef);
-    if (!jobDoc.exists()) {
+    const jobDocRef = db.collection("jobs").doc(req.params.id);
+    const jobDoc = await jobDocRef.get();
+    if (!jobDoc.exists) {
       return res.status(404).json({ message: "Job not found" });
     }
 
@@ -49,7 +48,7 @@ export const createJob = async (req: any, res: Response) => {
       created_at: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(collection(db, "jobs"), newJob);
+    const docRef = await db.collection("jobs").add(newJob);
     
     // Notify Telegram
     notifyNewJob(newJob, docRef.id);

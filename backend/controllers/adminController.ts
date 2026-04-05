@@ -1,12 +1,11 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, orderBy("created_at", "desc"));
-    const querySnapshot = await getDocs(q);
+    const usersRef = db.collection("users");
+    const q = usersRef.orderBy("created_at", "desc");
+    const querySnapshot = await q.get();
     
     const users = querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -28,9 +27,9 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
 export const getAllReferrals = async (req: Request, res: Response) => {
   try {
-    const referralsRef = collection(db, "referrals");
-    const q = query(referralsRef, orderBy("created_at", "desc"));
-    const querySnapshot = await getDocs(q);
+    const referralsRef = db.collection("referrals");
+    const q = referralsRef.orderBy("created_at", "desc");
+    const querySnapshot = await q.get();
     
     const referrals = querySnapshot.docs.map(doc => ({
       id: doc.id,

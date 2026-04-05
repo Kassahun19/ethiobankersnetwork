@@ -1,6 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
 import { db } from "../config/firebase";
-import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, doc, orderBy, limit, Timestamp } from "firebase/firestore";
 import * as bcrypt from "bcryptjs";
 
 const token = process.env.TELEGRAM_BOT_TOKEN || "7664361817:AAH63fDxlqYMtdhkr0AYxBjkwsH1cI54no4";
@@ -159,9 +158,8 @@ export const initTelegramBot = () => {
       const state = userStates[chatId];
       const isPremium = state?.isLoggedIn && (state?.user?.subscription_plan === "premium" || state?.user?.subscription_plan === "pro" || state?.user?.role === "admin");
 
-      const jobsRef = collection(db, "jobs");
-      const q = query(jobsRef, orderBy("created_at", "desc"), limit(5));
-      const querySnapshot = await getDocs(q);
+      const jobsRef = db.collection("jobs");
+      const querySnapshot = await jobsRef.orderBy("created_at", "desc").limit(5).get();
 
       if (querySnapshot.empty) {
         bot?.sendMessage(chatId, "No jobs found at the moment. Check back later!", menuInlineButton as any);
@@ -253,9 +251,8 @@ export const initTelegramBot = () => {
           bot?.sendMessage(chatId, "Verifying credentials... ⏳");
           
           try {
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("email", "==", state.data.email));
-            const querySnapshot = await getDocs(q);
+            const usersRef = db.collection("users");
+            const querySnapshot = await usersRef.where("email", "==", state.data.email).get();
 
             if (querySnapshot.empty) {
               bot?.sendMessage(chatId, "❌ Invalid email. Please enter your registered email address again:");
@@ -278,8 +275,7 @@ export const initTelegramBot = () => {
 
             // Store telegramChatId for notifications
             try {
-              const userRef = doc(db, "users", userDoc.id);
-              await updateDoc(userRef, { telegramChatId: chatId });
+              await db.collection("users").doc(userDoc.id).update({ telegramChatId: chatId });
             } catch (updateErr) {
               console.warn("Failed to update telegramChatId, but proceeding with login:", updateErr);
             }
@@ -340,9 +336,8 @@ export const initTelegramBot = () => {
             bot?.sendMessage(chatId, "Creating your account... ⏳");
 
             try {
-              const usersRef = collection(db, "users");
-              const q = query(usersRef, where("email", "==", state.data.email));
-              const querySnapshot = await getDocs(q);
+              const usersRef = db.collection("users");
+              const querySnapshot = await usersRef.where("email", "==", state.data.email).get();
 
               if (!querySnapshot.empty) {
                 bot?.sendMessage(chatId, "❌ This email is already registered. Please try logging in.", getMainMenuKeyboard(chatId) as any);
@@ -365,7 +360,7 @@ export const initTelegramBot = () => {
                 source: "telegram_bot"
               };
 
-              await addDoc(usersRef, newUser);
+              await usersRef.add(newUser);
               
               // Notify Admin
               const { notifyAdminOfNewUser } = await import("./notificationService");
@@ -404,10 +399,10 @@ export const initTelegramBot = () => {
               receipt_data = msg.caption || msg.document.file_name || "Document Receipt";
             }
 
-            const paymentsRef = collection(db, "payment_requests");
+            const paymentsRef = db.collection("payment_requests");
             const planName = state.data.selectedPlan || "Premium";
             
-            await addDoc(paymentsRef, {
+            await paymentsRef.add({
               user_id: state.user.id,
               user_name: state.user.name,
               user_email: state.user.email,
@@ -422,9 +417,8 @@ export const initTelegramBot = () => {
             bot?.sendMessage(chatId, `✅ Your submission for the *${planName} Plan* is successful and is waiting approval from the admin within 24 hours. You will be notified once approved.`, { parse_mode: "Markdown", ...getMainMenuKeyboard(chatId) } as any);
             
             // Notify Admins
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("role", "==", "admin"));
-            const adminsSnapshot = await getDocs(q);
+            const usersRef = db.collection("users");
+            const adminsSnapshot = await usersRef.where("role", "==", "admin").get();
             adminsSnapshot.docs.forEach(adminDoc => {
               const adminData = adminDoc.data();
               if (adminData.telegramChatId) {
@@ -528,9 +522,8 @@ export const initTelegramBot = () => {
         }
         
         try {
-          const paymentsRef = collection(db, "payment_requests");
-          const q = query(paymentsRef, where("status", "==", "Pending"), limit(5));
-          const pendingSnapshot = await getDocs(q);
+          const paymentsRef = db.collection("payment_requests");
+          const pendingSnapshot = await paymentsRef.where("status", "==", "Pending").limit(5).get();
           
           if (pendingSnapshot.empty) {
             bot?.sendMessage(chatId, "✅ No pending payment requests.", getMainMenuKeyboard(chatId) as any);
@@ -711,15 +704,14 @@ export const initTelegramBot = () => {
 
       const updateJobMessage = async () => {
         try {
-          const jobRef = doc(db, "jobs", jobId);
-          const jobSnap = await getDoc(jobRef);
+          const jobSnap = await db.collection("jobs").doc(jobId).get();
 
-          if (!jobSnap.exists()) {
+          if (!jobSnap.exists) {
             bot?.answerCallbackQuery(query.id, { text: "❌ Job not found." });
             return;
           }
 
-          const job = jobSnap.data();
+          const job = jobSnap.data()!;
           let jobMsg = `📌 *${job.title}*\n`;
           jobMsg += `🏦 *Bank:* ${job.bank}\n`;
           jobMsg += `📍 *Location:* ${job.location}\n`;
@@ -805,29 +797,29 @@ export const initTelegramBot = () => {
 
   const handlePaymentApproval = async (adminChatId: number, requestId: string, approved: boolean) => {
     try {
-      const requestRef = doc(db, "payment_requests", requestId);
-      const requestSnap = await getDoc(requestRef);
+      const requestRef = db.collection("payment_requests").doc(requestId);
+      const requestSnap = await requestRef.get();
       
-      if (!requestSnap.exists()) {
+      if (!requestSnap.exists) {
         bot?.sendMessage(adminChatId, "❌ Request not found.");
         return;
       }
 
       const requestData = requestSnap.data()!;
-      const userRef = doc(db, "users", requestData.user_id);
-      const userSnap = await getDoc(userRef);
+      const userRef = db.collection("users").doc(requestData.user_id);
+      const userSnap = await userRef.get();
       const userData = userSnap.data();
 
       if (approved) {
-        await updateDoc(requestRef, { status: "Approved" });
-        await updateDoc(userRef, { subscription_plan: "premium" });
+        await requestRef.update({ status: "Approved" });
+        await userRef.update({ subscription_plan: "premium" });
         bot?.sendMessage(adminChatId, `✅ Approved payment for ${requestData.user_name}. User is now Premium.`);
         
         if (userData?.telegramChatId) {
           bot?.sendMessage(userData.telegramChatId, "🌟 *Congratulations!*\n\nYour premium subscription has been approved. You now have full access to all premium features on EthioBankers Network!", { parse_mode: "Markdown" });
         }
       } else {
-        await updateDoc(requestRef, { status: "Rejected" });
+        await requestRef.update({ status: "Rejected" });
         bot?.sendMessage(adminChatId, `❌ Rejected payment for ${requestData.user_name}.`);
         
         if (userData?.telegramChatId) {
@@ -858,9 +850,8 @@ export const sendAdminNotification = async (message: string) => {
   if (!bot) return;
 
   try {
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("role", "==", "admin"));
-    const adminsSnapshot = await getDocs(q);
+    const usersRef = db.collection("users");
+    const adminsSnapshot = await usersRef.where("role", "==", "admin").get();
     
     adminsSnapshot.docs.forEach(adminDoc => {
       const adminData = adminDoc.data();
