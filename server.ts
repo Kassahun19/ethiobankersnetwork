@@ -22,7 +22,7 @@ server.listen(PORT, "0.0.0.0", () => {
 
 // 2. Initial middleware
 app.use(cors({
-  origin: ["https://ethiobankers.vercel.app", "http://localhost:3000", "http://localhost:5173"],
+  origin: true, // Allow all origins to prevent CORS issues
   credentials: true,
 }));
 app.use(express.json());

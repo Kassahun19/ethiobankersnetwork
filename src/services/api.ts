@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: import.meta.env.VITE_API_URL || "https://ais-dev-uln77omjqnlxhjanjh3gjl-46967922848.europe-west2.run.app/api",
 });
 
 api.interceptors.request.use((config) => {
