@@ -1,4 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import * as React from "react";
+import { ErrorInfo, ReactNode } from "react";
 import { AlertCircle, RefreshCcw } from "lucide-react";
 
 interface Props {
@@ -10,11 +11,14 @@ interface State {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null,
-  };
+class ErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    (this as any).state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -25,12 +29,15 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public render() {
-    if (this.state.hasError) {
+    const state = (this as any).state as State;
+    const props = (this as any).props as Props;
+
+    if (state.hasError) {
       let errorMessage = "Something went wrong. Please try again later.";
       
       try {
         // Check if it's a Firestore permission error JSON
-        const errorData = JSON.parse(this.state.error?.message || "");
+        const errorData = JSON.parse(state.error?.message || "");
         if (errorData.error && errorData.error.includes("insufficient permissions")) {
           errorMessage = "You don't have permission to perform this action. Please check your account status or subscription.";
         }
@@ -59,7 +66,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return (this as any).props.children;
+    return props.children;
   }
 }
 

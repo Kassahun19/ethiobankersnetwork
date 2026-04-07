@@ -2,8 +2,15 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import dotenv from "dotenv";
-import bcrypt from "bcryptjs";
+import bcryptModule from "bcryptjs";
 import { db } from "./config/firebase";
+
+// Robust bcrypt import for different environments
+const bcrypt = (bcryptModule as any).default || bcryptModule;
+
+console.log("[APP] Starting EthioBankers Backend...");
+console.log(`[APP] Node Version: ${process.version}`);
+console.log(`[APP] Environment: ${process.env.NODE_ENV}`);
 
 // Import routes
 import authRoutes from "./routes/authRoutes";
@@ -30,17 +37,34 @@ app.use(express.json());
 // API Routes
 const apiRouter = express.Router();
 
+apiRouter.use((req, res, next) => {
+  console.log(`[API-REQUEST]: ${req.method} ${req.url}`);
+  next();
+});
+
 apiRouter.get("/health", (req, res) => {
   res.json({ status: "ok", message: "EthioBankers Network API" });
 });
 
 apiRouter.get("/test-db", async (req, res) => {
   try {
-    await db.collection("users").limit(1).get();
-    res.json({ status: "ok", message: "Firestore connection successful" });
+    console.log("[TEST-DB] Attempting to query users collection...");
+    const snap = await db.collection("users").limit(1).get();
+    res.json({ 
+      status: "ok", 
+      message: "Firestore connection successful", 
+      empty: snap.empty,
+      size: snap.size,
+      projectId: process.env.FIREBASE_PROJECT_ID || "from-file"
+    });
   } catch (err: any) {
-    console.error("Firestore test failed:", err);
-    res.status(500).json({ status: "error", message: err.message, code: err.code });
+    console.error("[TEST-DB] Firestore test failed:", err);
+    res.status(500).json({ 
+      status: "error", 
+      message: err.message, 
+      code: err.code,
+      stack: process.env.NODE_ENV === "development" ? err.stack : undefined
+    });
   }
 });
 
@@ -65,7 +89,7 @@ apiRouter.get("/test-bcrypt", async (req, res) => {
     const startHash = Date.now();
     const hash = await bcrypt.hash(password, 10);
     const endHash = Date.now();
-    console.log(`[TEST-BCRYPT] Hash complete in ${endHash - startHash}ms: ${hash.substring(0, 10)}...`);
+    console.log(`[TEST-BCRYPT] Hash complete in ${endHash - startHash}ms: ${hash}`);
     
     console.log("[TEST-BCRYPT] Comparing...");
     const startCompare = Date.now();
@@ -73,15 +97,22 @@ apiRouter.get("/test-bcrypt", async (req, res) => {
     const endCompare = Date.now();
     console.log(`[TEST-BCRYPT] Compare complete in ${endCompare - startCompare}ms. Match: ${isMatch}`);
     
+    const startCompareWrong = Date.now();
+    const isMatchWrong = await bcrypt.compare("wrong-password", hash);
+    const endCompareWrong = Date.now();
+    
     res.json({ 
       status: "ok", 
       hashTime: `${endHash - startHash}ms`, 
       compareTime: `${endCompare - startCompare}ms`,
-      match: isMatch 
+      match: isMatch,
+      matchWrong: isMatchWrong,
+      bcryptType: typeof bcrypt,
+      hashType: typeof bcrypt.hash
     });
   } catch (err: any) {
     console.error("[TEST-BCRYPT] Failed:", err);
-    res.status(500).json({ status: "error", message: err.message });
+    res.status(500).json({ status: "error", message: err.message, stack: err.stack });
   }
 });
 
@@ -159,23 +190,51 @@ apiRouter.post("/telegram-webhook", async (req, res) => {
   }
 });
 
-// Mount the router at both /api and /
-// This ensures it works in AI Studio (/api/...) and Vercel (/api/index.ts handles /api/...)
-app.use("/api", apiRouter);
-app.use("/", apiRouter);
-
 // Static file serving in production
-if (process.env.NODE_ENV === "production") {
-  const distPath = path.join(process.cwd(), "dist");
-  app.use(express.static(distPath));
-  app.get("*", (req, res) => {
-    // Only serve index.html for non-API routes
-    if (!req.path.startsWith("/api")) {
-      res.sendFile(path.join(distPath, "index.html"));
-    } else {
-      res.status(404).json({ error: "API route not found" });
+if (process.env.NODE_ENV === "production" || !!process.env.VERCEL) {
+  const distPath = path.resolve(process.cwd(), "dist");
+  console.log(`[APP] Serving static files from: ${distPath}`);
+  
+  app.use(express.static(distPath, {
+    index: false // We'll handle index.html manually for SPA fallback
+  }));
+
+  // SPA Fallback: Send index.html for any non-API route that wasn't caught by express.static
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next(); // Let apiRouter handle it
     }
+    
+    const indexPath = path.join(distPath, "index.html");
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error(`[APP] Error sending index.html from ${indexPath}:`, err);
+        res.status(500).send("Frontend build not found. Please run 'npm run build'.");
+      }
+    });
   });
 }
+
+// Mount the router at /api
+app.use("/api", apiRouter);
+
+// Mount the router at / for "naked" routes, but only if they haven't been handled yet
+app.use("/", apiRouter);
+
+// Global Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("[GLOBAL-ERROR]:", {
+    message: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    body: req.body
+  });
+  res.status(500).json({
+    message: "Internal Server Error",
+    error: err.message,
+    code: err.code || "unknown"
+  });
+});
 
 export default app;

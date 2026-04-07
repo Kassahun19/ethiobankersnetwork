@@ -16,13 +16,11 @@ import {
   getDocFromServer,
   Firestore,
   QueryConstraint,
-  Query,
-  DocumentReference,
-  CollectionReference
 } from "firebase/firestore";
-import fs from "fs";
-import path from "path";
 import { getAuth as getClientAuth } from "firebase/auth";
+
+// Import the config file directly so it's bundled by Vercel
+import firebaseConfigFromFile from "../../firebase-applet-config.json";
 
 // Operation types for error handling
 enum OperationType {
@@ -54,16 +52,22 @@ interface FirestoreErrorInfo {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const clientAuth = getClientAuth();
+  let clientAuth;
+  try {
+    clientAuth = getClientAuth();
+  } catch (e) {
+    // Auth might not be initialized
+  }
+
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: clientAuth.currentUser?.uid,
-      email: clientAuth.currentUser?.email,
-      emailVerified: clientAuth.currentUser?.emailVerified,
-      isAnonymous: clientAuth.currentUser?.isAnonymous,
-      tenantId: clientAuth.currentUser?.tenantId,
-      providerInfo: clientAuth.currentUser?.providerData.map(provider => ({
+      userId: clientAuth?.currentUser?.uid,
+      email: clientAuth?.currentUser?.email,
+      emailVerified: clientAuth?.currentUser?.emailVerified,
+      isAnonymous: clientAuth?.currentUser?.isAnonymous,
+      tenantId: clientAuth?.currentUser?.tenantId,
+      providerInfo: clientAuth?.currentUser?.providerData.map(provider => ({
         providerId: provider.providerId,
         displayName: provider.displayName,
         email: provider.email,
@@ -77,31 +81,18 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Load configuration from environment variables or firebase-applet-config.json
-const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-let firebaseConfig: any = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID,
-  firestoreDatabaseId: process.env.FIREBASE_FIRESTORE_DATABASE_ID,
+// Load configuration
+const firebaseConfig: any = {
+  apiKey: process.env.FIREBASE_API_KEY || firebaseConfigFromFile.apiKey,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || firebaseConfigFromFile.authDomain,
+  projectId: process.env.FIREBASE_PROJECT_ID || firebaseConfigFromFile.projectId,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || firebaseConfigFromFile.storageBucket,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || firebaseConfigFromFile.messagingSenderId,
+  appId: process.env.FIREBASE_APP_ID || firebaseConfigFromFile.appId,
+  firestoreDatabaseId: process.env.FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfigFromFile.firestoreDatabaseId,
 };
 
-// If environment variables are missing, try to load from the config file
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  try {
-    if (fs.existsSync(configPath)) {
-      const fileConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      firebaseConfig = { ...firebaseConfig, ...fileConfig };
-    }
-  } catch (error) {
-    console.error("Error loading firebase-applet-config.json:", error);
-  }
-}
-
-console.log(`[FIREBASE] Config keys present: ${Object.keys(firebaseConfig).filter(k => !!firebaseConfig[k]).join(", ")}`);
+console.log(`[FIREBASE] Initializing for project: ${firebaseConfig.projectId}`);
 const app = initializeApp(firebaseConfig);
 const clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
 

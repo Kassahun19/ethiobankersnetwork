@@ -39,8 +39,12 @@ const Register: React.FC = () => {
       if (serverMsg && serverErr) {
         const detail = typeof serverErr === 'object' ? JSON.stringify(serverErr) : serverErr;
         displayError = `${serverMsg}: ${detail}`;
+      } else if (serverMsg) {
+        displayError = serverMsg;
+      } else if (serverErr) {
+        displayError = typeof serverErr === 'string' ? serverErr : JSON.stringify(serverErr);
       } else {
-        displayError = serverMsg || (typeof serverErr === 'string' ? serverErr : "") || "Failed to register. Please try again.";
+        displayError = err.message || "Failed to register. Please try again.";
       }
       
       setError(displayError);

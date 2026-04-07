@@ -1,7 +1,11 @@
 import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
+import bcryptModule from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "../config/firebase";
+import { notifyAdminOfNewUser } from "../services/notificationService";
+
+// Robust bcrypt import for different environments
+const bcrypt = (bcryptModule as any).default || bcryptModule;
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
 if (!process.env.JWT_SECRET) {
@@ -77,12 +81,8 @@ export const register = async (req: Request, res: Response) => {
     delete user.password;
 
     // Notify Admin (Non-blocking)
-    import("../services/notificationService").then(({ notifyAdminOfNewUser }) => {
-      notifyAdminOfNewUser(user).catch(err => {
-        console.error("Admin notification failed (non-blocking):", err);
-      });
-    }).catch(err => {
-      console.error("Failed to import notification service (non-blocking):", err);
+    notifyAdminOfNewUser(user).catch(err => {
+      console.error("Admin notification failed (non-blocking):", err);
     });
 
     // Create token
