@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { db } from "../config/firebase";
-import * as bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 
 const token = process.env.TELEGRAM_BOT_TOKEN || "7664361817:AAH63fDxlqYMtdhkr0AYxBjkwsH1cI54no4";
 if (process.env.TELEGRAM_BOT_TOKEN) {

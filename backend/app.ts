@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import dotenv from "dotenv";
-import * as bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 import { db } from "./config/firebase";
 
 // Import routes
