@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import dotenv from "dotenv";
+import * as bcrypt from "bcryptjs";
 import { db } from "./config/firebase";
 
 // Import routes
@@ -54,6 +55,33 @@ apiRouter.get("/test-write", async (req, res) => {
   } catch (err: any) {
     console.error("Firestore write failed:", err);
     res.status(500).json({ status: "error", message: err.message, code: err.code });
+  }
+});
+
+apiRouter.get("/test-bcrypt", async (req, res) => {
+  try {
+    const password = "test-password-123";
+    console.log("[TEST-BCRYPT] Hashing...");
+    const startHash = Date.now();
+    const hash = await bcrypt.hash(password, 10);
+    const endHash = Date.now();
+    console.log(`[TEST-BCRYPT] Hash complete in ${endHash - startHash}ms: ${hash.substring(0, 10)}...`);
+    
+    console.log("[TEST-BCRYPT] Comparing...");
+    const startCompare = Date.now();
+    const isMatch = await bcrypt.compare(password, hash);
+    const endCompare = Date.now();
+    console.log(`[TEST-BCRYPT] Compare complete in ${endCompare - startCompare}ms. Match: ${isMatch}`);
+    
+    res.json({ 
+      status: "ok", 
+      hashTime: `${endHash - startHash}ms`, 
+      compareTime: `${endCompare - startCompare}ms`,
+      match: isMatch 
+    });
+  } catch (err: any) {
+    console.error("[TEST-BCRYPT] Failed:", err);
+    res.status(500).json({ status: "error", message: err.message });
   }
 });
 

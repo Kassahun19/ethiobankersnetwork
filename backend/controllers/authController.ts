@@ -4,6 +4,11 @@ import jwt from "jsonwebtoken";
 import { db } from "../config/firebase";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
+if (!process.env.JWT_SECRET) {
+  console.warn("[AUTH] JWT_SECRET environment variable is missing. Using default secret.");
+} else {
+  console.log("[AUTH] JWT_SECRET environment variable is present.");
+}
 
 export const register = async (req: Request, res: Response) => {
   let { name, email, phone, password, bank, role } = req.body;
@@ -44,8 +49,11 @@ export const register = async (req: Request, res: Response) => {
     }
 
     // Hash password
-    console.log("[AUTH] Hashing password...");
+    console.log(`[AUTH] Hashing password for ${email}...`);
+    const startHash = Date.now();
     const hashedPassword = await bcrypt.hash(password, 10);
+    const endHash = Date.now();
+    console.log(`[AUTH] Password hashed in ${endHash - startHash}ms`);
 
     // Create user
     const newUser = {
@@ -68,13 +76,14 @@ export const register = async (req: Request, res: Response) => {
     const user: any = { id: docRef.id, ...newUser };
     delete user.password;
 
-    // Notify Admin
-    try {
-      const { notifyAdminOfNewUser } = await import("../services/notificationService");
-      await notifyAdminOfNewUser(user);
-    } catch (err) {
-      console.error("Admin notification failed (non-blocking):", err);
-    }
+    // Notify Admin (Non-blocking)
+    import("../services/notificationService").then(({ notifyAdminOfNewUser }) => {
+      notifyAdminOfNewUser(user).catch(err => {
+        console.error("Admin notification failed (non-blocking):", err);
+      });
+    }).catch(err => {
+      console.error("Failed to import notification service (non-blocking):", err);
+    });
 
     // Create token
     const token = jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
@@ -140,17 +149,24 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (querySnapshot.empty) {
-      console.warn(`[AUTH] Login failed: User ${email} not found`);
+      console.warn(`[AUTH] Login failed: User ${email} not found in Firestore`);
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const userDoc = querySnapshot.docs[0];
     const userData = userDoc.data();
+    console.log(`[AUTH] User found: ${userDoc.id}. Role: ${userData.role}`);
 
     console.log("[AUTH] Comparing passwords...");
+    const startCompare = Date.now();
     const isMatch = await bcrypt.compare(password, userData.password);
+    const endCompare = Date.now();
+    console.log(`[AUTH] Password comparison took ${endCompare - startCompare}ms. Match: ${isMatch}`);
+    
     if (!isMatch) {
       console.warn(`[AUTH] Login failed: Password mismatch for ${email}`);
+      // Log a small part of the hashes for debugging (safely)
+      console.log(`[AUTH] Hash from DB starts with: ${userData.password.substring(0, 10)}...`);
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
