@@ -67,9 +67,48 @@ apiRouter.get("/config-check", (req, res) => {
     appId: !!process.env.FIREBASE_APP_ID,
     firestoreDatabaseId: !!process.env.FIREBASE_FIRESTORE_DATABASE_ID,
     jwtSecret: !!process.env.JWT_SECRET,
+    telegramToken: !!process.env.TELEGRAM_BOT_TOKEN,
+    appUrl: process.env.APP_URL,
     nodeEnv: process.env.NODE_ENV,
+    isVercel: !!process.env.VERCEL,
   };
   res.json({ status: "ok", configKeys });
+});
+
+apiRouter.get("/bot-status", (req, res) => {
+  const isProduction = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
+  const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
+  const webhookUrl = `${appUrl}/api/telegram-webhook`;
+  
+  res.json({
+    status: "ok",
+    botInitialized: !!process.env.TELEGRAM_BOT_TOKEN,
+    mode: isProduction ? "WEBHOOK" : "POLLING",
+    appUrl,
+    webhookUrl,
+    tokenPresent: !!process.env.TELEGRAM_BOT_TOKEN,
+  });
+});
+
+apiRouter.get("/bot-setup", async (req, res) => {
+  try {
+    const { initTelegramBot } = await import("./services/telegramBot");
+    const bot = initTelegramBot();
+    if (!bot) {
+      return res.status(500).json({ status: "error", message: "Failed to initialize bot" });
+    }
+
+    const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
+    const webhookUrl = `${appUrl}/api/telegram-webhook`;
+    
+    console.log(`[BOT-SETUP] Manually setting webhook to: ${webhookUrl}`);
+    await bot.setWebHook(webhookUrl);
+    
+    res.json({ status: "ok", message: "Telegram Webhook set successfully", webhookUrl });
+  } catch (err: any) {
+    console.error("[BOT-SETUP] Error:", err);
+    res.status(500).json({ status: "error", message: err.message });
+  }
 });
 
 apiRouter.use("/auth", authRoutes);
@@ -82,9 +121,9 @@ apiRouter.use("/applications", applicationRoutes);
 apiRouter.use("/admin", adminRoutes);
 
 // Telegram Webhook Route
-apiRouter.post("/telegram-webhook", (req, res) => {
+apiRouter.post("/telegram-webhook", async (req, res) => {
   try {
-    handleTelegramWebhook(req.body);
+    await handleTelegramWebhook(req.body);
     res.sendStatus(200);
   } catch (err) {
     console.error("Error handling Telegram webhook:", err);

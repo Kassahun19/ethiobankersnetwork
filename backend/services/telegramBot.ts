@@ -849,10 +849,14 @@ export const initTelegramBot = () => {
   return bot;
 };
 
-export const handleTelegramWebhook = (body: any) => {
+export const handleTelegramWebhook = async (body: any) => {
   const currentBot = initTelegramBot();
   if (currentBot) {
+    // In serverless, we need to ensure the process stays alive long enough
+    // to complete the processing. Since processUpdate doesn't return a promise,
+    // we'll add a small delay to allow async operations to start.
     currentBot.processUpdate(body);
+    await new Promise(resolve => setTimeout(resolve, 1000));
   } else {
     console.error("Cannot handle Telegram webhook: Bot not initialized.");
   }
