@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getFirestore, 
   collection, 
@@ -18,9 +18,8 @@ import {
   QueryConstraint,
 } from "firebase/firestore";
 import { getAuth as getClientAuth } from "firebase/auth";
-
-// Import the config file directly so it's bundled by Vercel
-import firebaseConfigFromFile from "../../firebase-applet-config.json";
+import fs from "fs";
+import path from "path";
 
 // Operation types for error handling
 enum OperationType {
@@ -81,7 +80,20 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Load configuration
+// Load configuration with fallback
+let firebaseConfigFromFile: any = {};
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfigFromFile = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    console.log("[FIREBASE] Loaded config from firebase-applet-config.json");
+  } else {
+    console.warn("[FIREBASE] firebase-applet-config.json not found at", configPath);
+  }
+} catch (err) {
+  console.error("[FIREBASE] Error reading firebase-applet-config.json:", err);
+}
+
 const firebaseConfig: any = {
   apiKey: process.env.FIREBASE_API_KEY || firebaseConfigFromFile.apiKey,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN || firebaseConfigFromFile.authDomain,
@@ -92,52 +104,61 @@ const firebaseConfig: any = {
   firestoreDatabaseId: process.env.FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfigFromFile.firestoreDatabaseId,
 };
 
-console.log(`[FIREBASE] Initializing for project: ${firebaseConfig.projectId}`);
-const app = initializeApp(firebaseConfig);
-const clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
-
-// Validate Connection to Firestore (Optional, call explicitly if needed)
-export async function testConnection() {
-  try {
-    // Attempt to get a dummy doc from server to test connection
-    await getDocFromServer(doc(clientDb, 'test', 'connection'));
-    console.log("[FIREBASE] Connection test successful");
-    return true;
-  } catch (error: any) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("[FIREBASE] Connection test failed: The client is offline. Please check your Firebase configuration and network.");
-    } else {
-      // Other errors are expected if the doc doesn't exist or permissions are tight
-      console.log("[FIREBASE] Connection test completed (may have expected permission/not-found errors)");
-    }
-    return false;
-  }
+// Ensure we have at least a projectId to attempt initialization
+if (!firebaseConfig.projectId) {
+  console.error("[FIREBASE] CRITICAL: No Firebase Project ID found in environment or config file!");
 }
-// testConnection(); // Removed top-level call to avoid blocking startup
 
-console.log(`[FIREBASE] Initialized for project: ${firebaseConfig.projectId}`);
-if (firebaseConfig.firestoreDatabaseId) {
-  console.log(`[FIREBASE] Using database: ${firebaseConfig.firestoreDatabaseId}`);
+let app;
+try {
+  if (getApps().length === 0) {
+    console.log(`[FIREBASE] Initializing for project: ${firebaseConfig.projectId}`);
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+} catch (err) {
+  console.error("[FIREBASE] Failed to initialize Firebase App:", err);
+  throw err;
+}
+
+let _clientDb: Firestore | null = null;
+function getClientDb() {
+  if (!_clientDb) {
+    try {
+      _clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
+      console.log(`[FIREBASE] Firestore initialized for project: ${firebaseConfig.projectId}`);
+      if (firebaseConfig.firestoreDatabaseId) {
+        console.log(`[FIREBASE] Using database: ${firebaseConfig.firestoreDatabaseId}`);
+      }
+    } catch (err) {
+      console.error("[FIREBASE] Failed to initialize Firestore:", err);
+      throw err;
+    }
+  }
+  return _clientDb;
 }
 
 // Wrapper to mimic Admin SDK Firestore API
 class CollectionWrapper {
-  constructor(private db: Firestore, private path: string) {}
+  constructor(private path: string) {}
+
+  private get db() { return getClientDb(); }
 
   doc(id?: string) {
-    return new DocumentWrapper(this.db, this.path, id);
+    return new DocumentWrapper(this.path, id);
   }
 
   where(field: string, op: any, value: any) {
-    return new QueryWrapper(this.db, this.path, [where(field, op, value)]);
+    return new QueryWrapper(this.path, [where(field, op, value)]);
   }
 
   orderBy(field: string, direction: "asc" | "desc" = "asc") {
-    return new QueryWrapper(this.db, this.path, [orderBy(field, direction)]);
+    return new QueryWrapper(this.path, [orderBy(field, direction)]);
   }
 
   limit(count: number) {
-    return new QueryWrapper(this.db, this.path, [limit(count)]);
+    return new QueryWrapper(this.path, [limit(count)]);
   }
 
   async add(data: any) {
@@ -147,7 +168,7 @@ class CollectionWrapper {
       return { id: docRef.id };
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, this.path);
-      throw err; // Should not reach here as handleFirestoreError throws
+      throw err;
     }
   }
 
@@ -172,9 +193,12 @@ class CollectionWrapper {
 
 class DocumentWrapper {
   public id: string;
-  constructor(private db: Firestore, private colPath: string, id?: string) {
-    this.id = id || doc(collection(this.db, this.colPath)).id;
+  constructor(private colPath: string, id?: string) {
+    const db = getClientDb();
+    this.id = id || doc(collection(db, this.colPath)).id;
   }
+
+  private get db() { return getClientDb(); }
 
   async get() {
     try {
@@ -223,18 +247,20 @@ class DocumentWrapper {
 }
 
 class QueryWrapper {
-  constructor(private db: Firestore, private path: string, private constraints: QueryConstraint[]) {}
+  constructor(private path: string, private constraints: QueryConstraint[]) {}
+
+  private get db() { return getClientDb(); }
 
   where(field: string, op: any, value: any) {
-    return new QueryWrapper(this.db, this.path, [...this.constraints, where(field, op, value)]);
+    return new QueryWrapper(this.path, [...this.constraints, where(field, op, value)]);
   }
 
   orderBy(field: string, direction: "asc" | "desc" = "asc") {
-    return new QueryWrapper(this.db, this.path, [...this.constraints, orderBy(field, direction)]);
+    return new QueryWrapper(this.path, [...this.constraints, orderBy(field, direction)]);
   }
 
   limit(count: number) {
-    return new QueryWrapper(this.db, this.path, [...this.constraints, limit(count)]);
+    return new QueryWrapper(this.path, [...this.constraints, limit(count)]);
   }
 
   async get() {
@@ -258,7 +284,7 @@ class QueryWrapper {
 }
 
 export const db = {
-  collection: (path: string) => new CollectionWrapper(clientDb, path)
+  collection: (path: string) => new CollectionWrapper(path)
 };
 
 export default { db };

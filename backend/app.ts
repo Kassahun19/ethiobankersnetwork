@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import dotenv from "dotenv";
+import { fileURLToPath } from 'url';
 import bcryptModule from "bcryptjs";
 import { db } from "./config/firebase";
 
@@ -236,5 +237,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     code: err.code || "unknown"
   });
 });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+console.log(`[APP] Current Working Directory: ${process.cwd()}`);
+console.log(`[APP] __dirname: ${__dirname}`);
 
 export default app;
