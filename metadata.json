@@ -1,0 +1,5 @@
+{
+  "name": "EthioBankers Network",
+  "description": "Professional networking and job platform for the Ethiopian banking industry. Fixed registration and login issues with Vercel proxy and Firestore long polling.",
+  "requestFramePermissions": []
+}

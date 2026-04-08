@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required, unique)
+    //   - password: string (required, hashed)
+    //   - bank: string (required)
+    //   - role: string (required, ['admin', 'user', 'employer'])
+    //   - is_verified: bool (required)
+    //   - subscription_plan: string (required)
+    //   - created_at: string (required)
+    //
+    // Collection: jobs
+    // Fields:
+    //   - title: string (required)
+    //   - bank: string (required)
+    //   - description: string (required)
+    //   - salary: string (required)
+    //   - location: string (required)
+    //   - type: string (required)
+    //   - requirements: list (required)
+    //   - created_by: string (required, uid)
+    //   - created_at: string (required)
+    //
+    // Collection: applications
+    // Fields:
+    //   - user_id: string (required, uid)
+    //   - job_id: string (required)
+    //   - status: string (required, ['Pending', 'Accepted', 'Rejected'])
+    //   - created_at: string (required)
+    //
+    // Collection: messages
+    // Fields:
+    //   - sender_id: string (required, uid)
+    //   - receiver_id: string (required, uid)
+    //   - content: string (required)
+    //   - participants: list (required, [uid, uid])
+    //   - created_at: string (required)
+    //
+    // Collection: referrals
+    // Fields:
+    //   - user_id: string (required, uid)
+    //   - invited_email: string (required)
+    //   - status: string (required, ['Pending', 'Joined'])
+    //   - created_at: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         request.auth.token.email == "kassahunmulatu273@gmail.com" ||
+         request.auth.token.email == "kmulatu21@gmail.com");
+    }
+    
+    function isEmployer() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'employer';
+    }
+
+    // ===============================================================
+    // Collections
+    // ===============================================================
+
+    // Users Collection
+    match /users/{userId} {
+      // Allow reading users for login and profile checks
+      allow read: if true;
+      
+      // Allow unauthenticated create for registration
+      allow create: if true;
+      
+      // Allow users to update their own profile
+      // Also allow the Telegram bot to update telegramChatId and subscription_plan (for admin approval)
+      allow update: if (isAuthenticated() && (request.auth.uid == userId || isAdmin())) ||
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['telegramChatId'])) ||
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscription_plan', 'status']));
+    }
+
+    // Payment Requests Collection
+    match /payment_requests/{requestId} {
+      allow read: if true; // Allow bot and admins to read
+      allow create: if true; // Allow bot to create
+      allow update: if true; // Allow bot to update status
+    }
+
+    // Jobs Collection
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow create: if isEmployer() || isAdmin();
+      allow update, delete: if (isAuthenticated() && resource.data.created_by == request.auth.uid) || isAdmin();
+    }
+
+    // Applications Collection
+    match /applications/{appId} {
+      allow read: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin() || isEmployer());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isEmployer();
+    }
+
+    // Messages Collection
+    match /messages/{msgId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
+    }
+
+    // Referrals Collection
+    match /referrals/{refId} {
+      allow read: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAdmin();
+    }
+
+    // Test Collection
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
