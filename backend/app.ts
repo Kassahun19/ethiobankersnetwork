@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import dotenv from "dotenv";
+dotenv.config(); // Load environment variables FIRST
+
 import { fileURLToPath } from 'url';
 import bcryptModule from "bcryptjs";
 import { db } from "./config/firebase";
@@ -22,9 +24,6 @@ import referralRoutes from "./routes/referralRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import applicationRoutes from "./routes/applicationRoutes";
 import adminRoutes from "./routes/adminRoutes";
-import { handleTelegramWebhook } from "./services/telegramBot";
-
-dotenv.config();
 
 const app = express();
 
@@ -189,6 +188,7 @@ apiRouter.use("/admin", adminRoutes);
 // Telegram Webhook Route
 apiRouter.post("/telegram-webhook", async (req, res) => {
   try {
+    const { handleTelegramWebhook } = await import("./services/telegramBot");
     await handleTelegramWebhook(req.body);
     res.sendStatus(200);
   } catch (err) {

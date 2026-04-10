@@ -37,8 +37,12 @@ let _adminAuth: any;
 
 export const getAdminDb = () => {
   if (_adminDb) return _adminDb;
+  
   if (firebaseConfig.projectId) {
     try {
+      if (!admin.apps.length) {
+        admin.initializeApp({ projectId: firebaseConfig.projectId });
+      }
       _adminDb = admin.firestore(databaseId);
     } catch (err) {
       console.error("Failed to initialize Firestore Admin:", err);
@@ -75,8 +79,12 @@ export const getAdminDb = () => {
 
 export const getAdminAuth = () => {
   if (_adminAuth) return _adminAuth;
+  
   if (firebaseConfig.projectId) {
     try {
+      if (!admin.apps.length) {
+        admin.initializeApp({ projectId: firebaseConfig.projectId });
+      }
       _adminAuth = admin.auth();
     } catch (err) {
       console.error("Failed to initialize Auth Admin:", err);
@@ -89,5 +97,9 @@ export const getAdminAuth = () => {
 };
 
 // For backward compatibility, but recommended to use getAdminDb()
-export const adminDb = getAdminDb();
-export const adminAuth = getAdminAuth();
+export const adminDb = {
+  collection: (path: string) => getAdminDb().collection(path)
+};
+export const adminAuth = {
+  // Add common auth methods if needed, or just let users use getAdminAuth()
+};
