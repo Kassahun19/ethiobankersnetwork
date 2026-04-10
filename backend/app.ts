@@ -25,6 +25,15 @@ import paymentRoutes from "./routes/paymentRoutes";
 import applicationRoutes from "./routes/applicationRoutes";
 import adminRoutes from "./routes/adminRoutes";
 
+// Process-level error handlers for better debugging on Vercel
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[PROCESS] Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[PROCESS] Uncaught Exception:", err);
+});
+
 const app = express();
 
 // Middleware

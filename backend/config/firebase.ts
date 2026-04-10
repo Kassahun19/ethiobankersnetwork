@@ -102,11 +102,19 @@ const firebaseConfig: any = {
   firestoreDatabaseId: process.env.FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfigFromFile.firestoreDatabaseId,
 };
 
+// Log config status (redacted)
+console.log("[FIREBASE] Config status:", {
+  hasApiKey: !!firebaseConfig.apiKey,
+  projectId: firebaseConfig.projectId,
+  databaseId: firebaseConfig.firestoreDatabaseId || "(default)"
+});
+
 let _app: any;
 function getFirebaseApp() {
   if (!_app) {
     try {
       if (getApps().length === 0) {
+        console.log("[FIREBASE] Initializing new Firebase App...");
         _app = initializeApp(firebaseConfig);
       } else {
         _app = getApp();
@@ -124,7 +132,12 @@ function getClientDb() {
   if (!_clientDb) {
     try {
       const app = getFirebaseApp();
-      _clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
+      const dbId = firebaseConfig.firestoreDatabaseId;
+      console.log(`[FIREBASE] Initializing Firestore (DB ID: ${dbId || "(default)"})...`);
+      
+      // If DB ID looks like a placeholder or is empty, use default
+      const effectiveDbId = (dbId && dbId !== "TODO_FIRESTORE_DATABASE_ID") ? dbId : undefined;
+      _clientDb = getFirestore(app, effectiveDbId);
     } catch (err) {
       console.error("[FIREBASE] Failed to initialize Firestore:", err);
       throw err;
