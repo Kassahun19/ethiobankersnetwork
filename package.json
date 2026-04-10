@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "concurrently \"tsx server.ts\" \"tsx bot-worker.ts\"",
+    "start": "concurrently \"node server.ts\" \"node bot-worker.ts\"",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -21,6 +22,7 @@
     "axios": "^1.14.0",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
+    "concurrently": "^9.2.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",

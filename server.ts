@@ -28,15 +28,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// Initialize Telegram Bot
-setTimeout(() => {
-  try {
-    initTelegramBot();
-  } catch (err) {
-    console.error(`Failed to initialize Telegram Bot: ${err}`);
-  }
-}, 1000);
-
 // Vite middleware for development
 async function startDevServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -55,10 +46,15 @@ async function startDevServer() {
   }
 }
 
-startDevServer();
+// Start the server
+async function start() {
+  await startDevServer();
+  
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log("==========================================");
+    console.log(`🚀 EthioBankers Server listening on port ${PORT}`);
+    console.log("==========================================");
+  });
+}
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log("==========================================");
-  console.log(`🚀 EthioBankers Server listening on port ${PORT}`);
-  console.log("==========================================");
-});
+start();

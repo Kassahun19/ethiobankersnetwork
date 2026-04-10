@@ -1,6 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { db } from "../config/firebase";
 import bcryptModule from "bcryptjs";
+import { setBot } from "./botUtils";
 
 // Robust bcrypt import for different environments
 const bcrypt = (bcryptModule as any).default || bcryptModule;
@@ -74,6 +75,7 @@ export const initTelegramBot = () => {
     if (isProduction || process.env.TELEGRAM_WEBHOOK_ENABLED === "true") {
       console.log(`[BOT] Initializing in WEBHOOK mode for ${appUrl}`);
       bot = new TelegramBot(token, { polling: false });
+      setBot(bot);
       
       // Only set webhook if explicitly requested via environment variable
       // This avoids redundant network calls on every function invocation
@@ -91,6 +93,7 @@ export const initTelegramBot = () => {
     } else {
       console.log("[BOT] Initializing in POLLING mode (Development)...");
       bot = new TelegramBot(token, { polling: true });
+      setBot(bot);
     }
 
     bot.on("polling_error", (error) => {
@@ -207,6 +210,20 @@ export const initTelegramBot = () => {
     }
   };
 
+  bot.onText(/\/testdb/, async (msg) => {
+    const chatId = msg.chat.id;
+    bot?.sendMessage(chatId, "🔍 Testing Firestore connection...");
+    try {
+      const start = Date.now();
+      const snap = await db.collection("users").limit(1).get();
+      const end = Date.now();
+      bot?.sendMessage(chatId, `✅ Firestore connection successful!\n⏱️ Response time: ${end - start}ms\n👥 Users found: ${snap.size}`);
+    } catch (err: any) {
+      console.error("[BOT-TESTDB] Error:", err);
+      bot?.sendMessage(chatId, `❌ Firestore connection failed: ${err.message}`);
+    }
+  });
+
   bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!userStates[chatId]) {
@@ -263,10 +280,17 @@ export const initTelegramBot = () => {
           bot?.sendMessage(chatId, "Verifying credentials... ⏳");
           
           try {
+            console.log(`[BOT-LOGIN] Attempting login for ${state.data.email}`);
             const usersRef = db.collection("users");
-            const querySnapshot = await usersRef.where("email", "==", state.data.email).get();
+            
+            // Add a timeout to the query
+            const queryPromise = usersRef.where("email", "==", state.data.email).get();
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database timeout")), 10000));
+            
+            const querySnapshot = await Promise.race([queryPromise, timeoutPromise]) as any;
 
             if (querySnapshot.empty) {
+              console.warn(`[BOT-LOGIN] User not found: ${state.data.email}`);
               bot?.sendMessage(chatId, "❌ Invalid email. Please enter your registered email address again:");
               state.step = "LOGIN_AWAITING_EMAIL";
               return;
@@ -348,16 +372,25 @@ export const initTelegramBot = () => {
             bot?.sendMessage(chatId, "Creating your account... ⏳");
 
             try {
+              console.log(`[BOT-REGISTER] Attempting registration for ${state.data.email}`);
               const usersRef = db.collection("users");
-              const querySnapshot = await usersRef.where("email", "==", state.data.email).get();
+              
+              // Check if user exists with timeout
+              const checkPromise = usersRef.where("email", "==", state.data.email).get();
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database timeout")), 10000));
+              
+              const querySnapshot = await Promise.race([checkPromise, timeoutPromise]) as any;
 
               if (!querySnapshot.empty) {
+                console.warn(`[BOT-REGISTER] Email already exists: ${state.data.email}`);
                 bot?.sendMessage(chatId, "❌ This email is already registered. Please try logging in.", getMainMenuKeyboard(chatId) as any);
                 userStates[chatId] = { step: "IDLE", data: {} };
                 return;
               }
 
+              console.log(`[BOT-REGISTER] Hashing password for ${state.data.email}`);
               const hashedPassword = await bcrypt.hash(state.data.password, 10);
+              
               const newUser = {
                 name: state.data.name,
                 email: state.data.email,
@@ -372,11 +405,17 @@ export const initTelegramBot = () => {
                 source: "telegram_bot"
               };
 
+              console.log(`[BOT-REGISTER] Adding user to Firestore: ${state.data.email}`);
               await usersRef.add(newUser);
+              console.log(`[BOT-REGISTER] User added successfully: ${state.data.email}`);
               
               // Notify Admin
-              const { notifyAdminOfNewUser } = await import("./notificationService");
-              notifyAdminOfNewUser({ ...newUser, id: "telegram_user" }).catch(err => console.error("Admin notification failed:", err));
+              try {
+                const { notifyAdminOfNewUser } = await import("./notificationService");
+                notifyAdminOfNewUser({ ...newUser, id: "telegram_user" }).catch(err => console.error("Admin notification failed:", err));
+              } catch (notifyErr) {
+                console.error("Failed to import notificationService:", notifyErr);
+              }
 
               bot?.sendMessage(chatId, `🎉 Registration successful! Welcome to the EthioBankers Network, ${state.data.name}. You can now use the menu to explore jobs.`, getMainMenuKeyboard(chatId) as any);
               state.step = "IDLE";
@@ -862,51 +901,6 @@ export const handleTelegramWebhook = async (body: any) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
   } else {
     console.error("Cannot handle Telegram webhook: Bot not initialized.");
-  }
-};
-
-export const sendAdminNotification = async (message: string) => {
-  const currentBot = initTelegramBot();
-  if (!currentBot) return;
-
-  try {
-    const usersRef = db.collection("users");
-    const adminsSnapshot = await usersRef.where("role", "==", "admin").get();
-    
-    adminsSnapshot.docs.forEach(adminDoc => {
-      const adminData = adminDoc.data();
-      if (adminData.telegramChatId) {
-        bot?.sendMessage(adminData.telegramChatId, message, { parse_mode: "Markdown" });
-      }
-    });
-  } catch (error) {
-    console.error("Error sending admin notification:", error);
-  }
-};
-
-export const notifyNewJob = async (job: any, jobId: string) => {
-  const currentBot = initTelegramBot();
-  if (!currentBot) return;
-
-  // In a real app, you might want to send this to a specific channel or all subscribers
-  // For now, we'll just log it or send to a test chat if configured
-  console.log(`New job posted: ${job.title}. Notification logic can be added here.`);
-  
-  // Example: notify a specific channel if configured in env
-  const channelId = process.env.TELEGRAM_CHANNEL_ID;
-  if (channelId) {
-    const appUrl = process.env.APP_URL || "https://ethiobankers.vercel.app";
-    const message = `🆕 *New Job Alert!*\n\n` +
-                    `📌 *${job.title}*\n` +
-                    `🏦 Bank: ${job.bank}\n` +
-                    `📍 Location: ${job.location}\n` +
-                    `🔗 [Apply Now](${appUrl}/jobs/${jobId})`;
-    
-    try {
-      await bot.sendMessage(channelId, message, { parse_mode: "Markdown" });
-    } catch (error) {
-      console.error("Error sending Telegram notification:", error);
-    }
   }
 };
 

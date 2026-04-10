@@ -132,8 +132,9 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const usersRef = db.collection("users");
-    console.log(`[AUTH] Fetching user for email: ${email}`);
-    const q = usersRef.where("email", "==", email);
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log(`[AUTH] Fetching user for email: ${normalizedEmail}`);
+    const q = usersRef.where("email", "==", normalizedEmail);
     
     let querySnapshot;
     try {

@@ -1,25 +1,9 @@
-import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit,
-  getDocFromServer,
-  Firestore,
-  QueryConstraint,
-} from "firebase/firestore";
+  getAdminDb,
+  getAdminAuth
+} from "./firebaseAdmin";
 import { getAuth as getClientAuth } from "firebase/auth";
-import fs from "fs";
-import path from "path";
+import { getApps } from "firebase/app";
 
 // Operation types for error handling
 enum OperationType {
@@ -53,7 +37,11 @@ interface FirestoreErrorInfo {
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   let clientAuth;
   try {
-    clientAuth = getClientAuth();
+    // We still try to get client auth if available for context, 
+    // but we don't rely on it for initialization
+    if (getApps().length > 0) {
+      clientAuth = getClientAuth();
+    }
   } catch (e) {
     // Auth might not be initialized
   }
@@ -80,91 +68,31 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Load configuration with fallback
-let firebaseConfigFromFile: any = {};
-try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfigFromFile = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    console.log("[FIREBASE] Loaded config from firebase-applet-config.json");
-  } else {
-    console.warn("[FIREBASE] firebase-applet-config.json not found at", configPath);
-  }
-} catch (err) {
-  console.error("[FIREBASE] Error reading firebase-applet-config.json:", err);
-}
-
-const firebaseConfig: any = {
-  apiKey: process.env.FIREBASE_API_KEY || firebaseConfigFromFile.apiKey,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || firebaseConfigFromFile.authDomain,
-  projectId: process.env.FIREBASE_PROJECT_ID || firebaseConfigFromFile.projectId,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || firebaseConfigFromFile.storageBucket,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || firebaseConfigFromFile.messagingSenderId,
-  appId: process.env.FIREBASE_APP_ID || firebaseConfigFromFile.appId,
-  firestoreDatabaseId: process.env.FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfigFromFile.firestoreDatabaseId,
-};
-
-// Ensure we have at least a projectId to attempt initialization
-if (!firebaseConfig.projectId) {
-  console.error("[FIREBASE] CRITICAL: No Firebase Project ID found in environment or config file!");
-}
-
-let app;
-try {
-  if (getApps().length === 0) {
-    console.log(`[FIREBASE] Initializing for project: ${firebaseConfig.projectId}`);
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApp();
-  }
-} catch (err) {
-  console.error("[FIREBASE] Failed to initialize Firebase App:", err);
-  throw err;
-}
-
-let _clientDb: Firestore | null = null;
-function getClientDb() {
-  if (!_clientDb) {
-    try {
-      _clientDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
-      console.log(`[FIREBASE] Firestore initialized for project: ${firebaseConfig.projectId}`);
-      if (firebaseConfig.firestoreDatabaseId) {
-        console.log(`[FIREBASE] Using database: ${firebaseConfig.firestoreDatabaseId}`);
-      }
-    } catch (err) {
-      console.error("[FIREBASE] Failed to initialize Firestore:", err);
-      throw err;
-    }
-  }
-  return _clientDb;
-}
-
-// Wrapper to mimic Admin SDK Firestore API
+// Wrapper to mimic Admin SDK Firestore API using firebase-admin
 class CollectionWrapper {
   constructor(private path: string) {}
 
-  private get db() { return getClientDb(); }
+  private get db() { return getAdminDb(); }
 
   doc(id?: string) {
     return new DocumentWrapper(this.path, id);
   }
 
   where(field: string, op: any, value: any) {
-    return new QueryWrapper(this.path, [where(field, op, value)]);
+    return new QueryWrapper(this.path, this.db.collection(this.path).where(field, op, value));
   }
 
   orderBy(field: string, direction: "asc" | "desc" = "asc") {
-    return new QueryWrapper(this.path, [orderBy(field, direction)]);
+    return new QueryWrapper(this.path, this.db.collection(this.path).orderBy(field, direction));
   }
 
   limit(count: number) {
-    return new QueryWrapper(this.path, [limit(count)]);
+    return new QueryWrapper(this.path, this.db.collection(this.path).limit(count));
   }
 
   async add(data: any) {
     try {
-      const colRef = collection(this.db, this.path);
-      const docRef = await addDoc(colRef, data);
+      const docRef = await this.db.collection(this.path).add(data);
       return { id: docRef.id };
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, this.path);
@@ -174,12 +102,11 @@ class CollectionWrapper {
 
   async get() {
     try {
-      const colRef = collection(this.db, this.path);
-      const snap = await getDocs(colRef);
+      const snap = await this.db.collection(this.path).get();
       return {
         empty: snap.empty,
         size: snap.size,
-        docs: snap.docs.map(doc => ({
+        docs: snap.docs.map((doc: any) => ({
           id: doc.id,
           data: () => doc.data()
         }))
@@ -192,20 +119,20 @@ class CollectionWrapper {
 }
 
 class DocumentWrapper {
-  public id: string;
-  constructor(private colPath: string, id?: string) {
-    const db = getClientDb();
-    this.id = id || doc(collection(db, this.colPath)).id;
+  constructor(private colPath: string, public id?: string) {
+    if (!this.id) {
+      this.id = getAdminDb().collection(this.colPath).doc().id;
+    }
   }
 
-  private get db() { return getClientDb(); }
+  private get db() { return getAdminDb(); }
 
   async get() {
     try {
-      const docRef = doc(this.db, this.colPath, this.id);
-      const snap = await getDoc(docRef);
+      const docRef = this.db.collection(this.colPath).doc(this.id);
+      const snap = await docRef.get();
       return {
-        exists: snap.exists(),
+        exists: snap.exists,
         id: snap.id,
         data: () => snap.data()
       };
@@ -217,8 +144,8 @@ class DocumentWrapper {
 
   async set(data: any, options?: any) {
     try {
-      const docRef = doc(this.db, this.colPath, this.id);
-      return await setDoc(docRef, data, options);
+      const docRef = this.db.collection(this.colPath).doc(this.id);
+      return await docRef.set(data, options);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `${this.colPath}/${this.id}`);
       throw err;
@@ -227,8 +154,8 @@ class DocumentWrapper {
 
   async update(data: any) {
     try {
-      const docRef = doc(this.db, this.colPath, this.id);
-      return await updateDoc(docRef, data);
+      const docRef = this.db.collection(this.colPath).doc(this.id);
+      return await docRef.update(data);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `${this.colPath}/${this.id}`);
       throw err;
@@ -237,8 +164,8 @@ class DocumentWrapper {
 
   async delete() {
     try {
-      const docRef = doc(this.db, this.colPath, this.id);
-      return await deleteDoc(docRef);
+      const docRef = this.db.collection(this.colPath).doc(this.id);
+      return await docRef.delete();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `${this.colPath}/${this.id}`);
       throw err;
@@ -247,31 +174,27 @@ class DocumentWrapper {
 }
 
 class QueryWrapper {
-  constructor(private path: string, private constraints: QueryConstraint[]) {}
-
-  private get db() { return getClientDb(); }
+  constructor(private path: string, private query: any) {}
 
   where(field: string, op: any, value: any) {
-    return new QueryWrapper(this.path, [...this.constraints, where(field, op, value)]);
+    return new QueryWrapper(this.path, this.query.where(field, op, value));
   }
 
   orderBy(field: string, direction: "asc" | "desc" = "asc") {
-    return new QueryWrapper(this.path, [...this.constraints, orderBy(field, direction)]);
+    return new QueryWrapper(this.path, this.query.orderBy(field, direction));
   }
 
   limit(count: number) {
-    return new QueryWrapper(this.path, [...this.constraints, limit(count)]);
+    return new QueryWrapper(this.path, this.query.limit(count));
   }
 
   async get() {
     try {
-      const colRef = collection(this.db, this.path);
-      const q = query(colRef, ...this.constraints);
-      const snap = await getDocs(q);
+      const snap = await this.query.get();
       return {
         empty: snap.empty,
         size: snap.size,
-        docs: snap.docs.map(doc => ({
+        docs: snap.docs.map((doc: any) => ({
           id: doc.id,
           data: () => doc.data()
         }))

@@ -39,7 +39,13 @@ app.use(express.json());
 const apiRouter = express.Router();
 
 apiRouter.use((req, res, next) => {
-  console.log(`[API-REQUEST]: ${req.method} ${req.url}`);
+  // Only log actual API requests, ignore static assets and source files
+  const isStaticAsset = req.url.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|tsx|ts|jsx)$/);
+  const isApiRoute = req.url.startsWith('/api') || req.originalUrl.startsWith('/api') || !isStaticAsset;
+
+  if (isApiRoute && !isStaticAsset) {
+    console.log(`[API-REQUEST]: ${req.method} ${req.url}`);
+  }
   next();
 });
 
@@ -191,36 +197,28 @@ apiRouter.post("/telegram-webhook", async (req, res) => {
   }
 });
 
-// Static file serving in production
+// Mount the router at /api
+app.use("/api", apiRouter);
+
+// In production/Vercel, handle static files and SPA fallback
 if (process.env.NODE_ENV === "production" || !!process.env.VERCEL) {
   const distPath = path.resolve(process.cwd(), "dist");
-  console.log(`[APP] Serving static files from: ${distPath}`);
+  console.log(`[APP] Production mode: Serving from ${distPath}`);
   
-  app.use(express.static(distPath, {
-    index: false // We'll handle index.html manually for SPA fallback
-  }));
+  app.use(express.static(distPath, { index: false }));
 
-  // SPA Fallback: Send index.html for any non-API route that wasn't caught by express.static
   app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      return next(); // Let apiRouter handle it
-    }
+    if (req.path.startsWith("/api")) return next();
     
     const indexPath = path.join(distPath, "index.html");
     res.sendFile(indexPath, (err) => {
-      if (err) {
-        console.error(`[APP] Error sending index.html from ${indexPath}:`, err);
-        res.status(500).send("Frontend build not found. Please run 'npm run build'.");
+      if (err && !res.headersSent) {
+        console.error(`[APP] SPA Fallback Error: ${err.message}`);
+        res.status(404).send("Frontend build not found. Please ensure 'npm run build' has been executed.");
       }
     });
   });
 }
-
-// Mount the router at /api
-app.use("/api", apiRouter);
-
-// Mount the router at / for "naked" routes, but only if they haven't been handled yet
-app.use("/", apiRouter);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
