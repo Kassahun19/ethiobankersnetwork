@@ -3,15 +3,21 @@ import { sendAdminNotification } from "./botUtils";
 
 const ADMIN_EMAIL = "kmulatu21@gmail.com";
 
-// Configure email transporter
-// In a real app, these would be in environment variables
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// Configure email transporter lazily
+let _transporter: any = null;
+const getTransporter = () => {
+  if (_transporter) return _transporter;
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    _transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+  }
+  return _transporter;
+};
 
 export const notifyAdminOfNewUser = async (user: any) => {
   const message = `🆕 *New User Registered!*\n\n` +
@@ -31,7 +37,8 @@ export const notifyAdminOfNewUser = async (user: any) => {
   }
 
   // 2. Notify via Email
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  const transporter = getTransporter();
+  if (transporter) {
     try {
       await transporter.sendMail({
         from: `"EthioBankers Network" <${process.env.EMAIL_USER}>`,

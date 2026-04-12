@@ -61,7 +61,7 @@ apiRouter.get("/health", (req, res) => {
   res.json({ status: "ok", message: "EthioBankers Network API" });
 });
 
-apiRouter.get("/test-db", async (req, res) => {
+apiRouter.get("/test-db", async (req, res, next) => {
   try {
     console.log("[TEST-DB] Attempting to query users collection...");
     const snap = await db.collection("users").limit(1).get();
@@ -73,17 +73,11 @@ apiRouter.get("/test-db", async (req, res) => {
       projectId: process.env.FIREBASE_PROJECT_ID || "from-file"
     });
   } catch (err: any) {
-    console.error("[TEST-DB] Firestore test failed:", err);
-    res.status(500).json({ 
-      status: "error", 
-      message: err.message, 
-      code: err.code,
-      stack: process.env.NODE_ENV === "development" ? err.stack : undefined
-    });
+    next(err);
   }
 });
 
-apiRouter.get("/test-write", async (req, res) => {
+apiRouter.get("/test-write", async (req, res, next) => {
   try {
     const docRef = await db.collection("test").add({
       timestamp: new Date().toISOString(),
@@ -92,8 +86,7 @@ apiRouter.get("/test-write", async (req, res) => {
     });
     res.json({ status: "ok", message: "Firestore write successful", id: docRef.id });
   } catch (err: any) {
-    console.error("Firestore write failed:", err);
-    res.status(500).json({ status: "error", message: err.message, code: err.code });
+    next(err);
   }
 });
 
@@ -231,17 +224,21 @@ if (process.env.NODE_ENV === "production" || !!process.env.VERCEL) {
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error("[GLOBAL-ERROR]:", {
-    message: err.message,
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "A server error has occurred";
+  
+  console.error(`[GLOBAL-ERROR] ${status}:`, {
+    message,
     stack: err.stack,
     url: req.url,
     method: req.method,
     body: req.body
   });
-  res.status(500).json({
-    message: "Internal Server Error",
-    error: err.message,
-    code: err.code || "unknown"
+
+  res.status(status).json({
+    code: status.toString(),
+    message: message,
+    error: process.env.NODE_ENV === "development" ? err.stack : undefined
   });
 });
 

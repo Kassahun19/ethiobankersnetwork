@@ -25,15 +25,18 @@ if (firebaseConfig.projectId && !admin.apps.length) {
   }
 }
 
-const databaseId = firebaseConfig.firestoreDatabaseId || "(default)";
+const databaseId = (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "TODO_FIRESTORE_DATABASE_ID") 
+  ? firebaseConfig.firestoreDatabaseId 
+  : undefined;
+
 if (!firebaseConfig.projectId) {
   console.warn("[FIREBASE-ADMIN] No Project ID found. Using MOCK Admin DB.");
 } else {
-  console.log(`[FIREBASE-ADMIN] Using REAL Admin DB with Database ID: ${databaseId}`);
+  console.log(`[FIREBASE-ADMIN] Using REAL Admin DB with Database ID: ${databaseId || "(default)"}`);
 }
 
-let _adminDb: any;
-let _adminAuth: any;
+let _adminDb: admin.firestore.Firestore | null = null;
+let _adminAuth: admin.auth.Auth | null = null;
 
 export const getAdminDb = () => {
   if (_adminDb) return _adminDb;
@@ -43,7 +46,8 @@ export const getAdminDb = () => {
       if (!admin.apps.length) {
         admin.initializeApp({ projectId: firebaseConfig.projectId });
       }
-      _adminDb = admin.firestore(databaseId);
+      // Only pass databaseId if it's not undefined
+      _adminDb = databaseId ? admin.firestore(databaseId) : admin.firestore();
     } catch (err) {
       console.error("Failed to initialize Firestore Admin:", err);
     }

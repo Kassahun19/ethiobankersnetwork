@@ -14,7 +14,7 @@ if (!process.env.JWT_SECRET) {
   console.log("[AUTH] JWT_SECRET environment variable is present.");
 }
 
-export const register = async (req: Request, res: Response) => {
+export const register = async (req: Request, res: Response, next: any) => {
   let { name, email, phone, password, bank, role } = req.body;
 
   try {
@@ -90,36 +90,11 @@ export const register = async (req: Request, res: Response) => {
 
     res.status(201).json({ token, user });
   } catch (err: any) {
-    console.error("[AUTH] Registration error details:", {
-      message: err.message,
-      code: err.code,
-      stack: err.stack,
-      email: req.body.email
-    });
-    
-    let errorMessage = "Server error during registration";
-    let errorDetail = err.message;
-    
-    // Check if it's a JSON string from handleFirestoreError
-    try {
-      const parsed = JSON.parse(err.message);
-      if (parsed.error) {
-        errorDetail = parsed.error;
-        errorMessage = `Database error: ${parsed.operationType} on ${parsed.path}`;
-      }
-    } catch (e) {
-      // Not a JSON string, use as is
-    }
-
-    res.status(500).json({ 
-      message: errorMessage, 
-      error: errorDetail,
-      code: err.code || "unknown"
-    });
+    next(err);
   }
 };
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: Request, res: Response, next: any) => {
   let { email, password } = req.body;
 
   try {
@@ -179,36 +154,11 @@ export const login = async (req: Request, res: Response) => {
     console.log(`[AUTH] User ${email} logged in successfully`);
     res.json({ token, user });
   } catch (err: any) {
-    console.error("[AUTH] Login error details:", {
-      message: err.message,
-      code: err.code,
-      stack: err.stack,
-      email: req.body.email
-    });
-    
-    let errorMessage = "Server error during login";
-    let errorDetail = err.message;
-    
-    // Check if it's a JSON string from handleFirestoreError
-    try {
-      const parsed = JSON.parse(err.message);
-      if (parsed.error) {
-        errorDetail = parsed.error;
-        errorMessage = `Database error: ${parsed.operationType} on ${parsed.path}`;
-      }
-    } catch (e) {
-      // Not a JSON string, use as is
-    }
-
-    res.status(500).json({ 
-      message: errorMessage, 
-      error: errorDetail,
-      code: err.code || "unknown"
-    });
+    next(err);
   }
 };
 
-export const getMe = async (req: any, res: Response) => {
+export const getMe = async (req: any, res: Response, next: any) => {
   try {
     const userDocRef = db.collection("users").doc(req.user.id);
     const userDoc = await userDocRef.get();
@@ -221,7 +171,6 @@ export const getMe = async (req: any, res: Response) => {
 
     res.json({ user });
   } catch (err: any) {
-    console.error("GetMe error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    next(err);
   }
 };
