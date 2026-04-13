@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import bcryptModule from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { db } from "../config/firebase";
-import { notifyAdminOfNewUser } from "../services/notificationService";
+import { db } from "../config/firebase.js";
+import { notifyAdminOfNewUser } from "../services/notificationService.js";
 
 // Robust bcrypt import for different environments
 const bcrypt = (bcryptModule as any).default || bcryptModule;

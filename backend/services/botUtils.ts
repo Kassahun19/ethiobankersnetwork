@@ -1,5 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
-import { db } from "../config/firebase";
+import { db } from "../config/firebase.js";
 
 let bot: TelegramBot | null = null;
 

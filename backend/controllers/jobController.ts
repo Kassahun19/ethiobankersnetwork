@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { db } from "../config/firebase";
-import { notifyNewJob } from "../services/botUtils";
+import { db } from "../config/firebase.js";
+import { notifyNewJob } from "../services/botUtils.js";
 
 export const getJobs = async (req: Request, res: Response) => {
   try {

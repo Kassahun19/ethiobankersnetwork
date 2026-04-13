@@ -6,7 +6,7 @@ dotenv.config(); // Load environment variables FIRST
 
 import { fileURLToPath } from 'url';
 import bcryptModule from "bcryptjs";
-import { db } from "./config/firebase";
+import { db } from "./config/firebase.js";
 
 // Robust bcrypt import for different environments
 const bcrypt = (bcryptModule as any).default || bcryptModule;
@@ -16,14 +16,14 @@ console.log(`[APP] Node Version: ${process.version}`);
 console.log(`[APP] Environment: ${process.env.NODE_ENV}`);
 
 // Import routes
-import authRoutes from "./routes/authRoutes";
-import jobRoutes from "./routes/jobRoutes";
-import userRoutes from "./routes/userRoutes";
-import messageRoutes from "./routes/messageRoutes";
-import referralRoutes from "./routes/referralRoutes";
-import paymentRoutes from "./routes/paymentRoutes";
-import applicationRoutes from "./routes/applicationRoutes";
-import adminRoutes from "./routes/adminRoutes";
+import authRoutes from "./routes/authRoutes.js";
+import jobRoutes from "./routes/jobRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
+import referralRoutes from "./routes/referralRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import applicationRoutes from "./routes/applicationRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 // Process-level error handlers for better debugging on Vercel
 process.on("unhandledRejection", (reason, promise) => {

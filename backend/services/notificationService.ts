@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { sendAdminNotification } from "./botUtils";
+import { sendAdminNotification } from "./botUtils.js";
 
 const ADMIN_EMAIL = "kmulatu21@gmail.com";
 

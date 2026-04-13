@@ -1,4 +1,4 @@
-import { getAdminDb } from "./firebaseAdmin";
+import { getAdminDb } from "./firebaseAdmin.js";
 
 // Operation types for error handling
 enum OperationType {
